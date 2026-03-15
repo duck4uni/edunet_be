@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Enrollment } from './entities/enrollment.entity';
+import { Enrollment, EnrollmentStatus } from './entities/enrollment.entity';
 import { Pagination } from 'src/core/decorators/pagination-params.decorator';
 import { Sorting } from 'src/core/decorators/sorting-params.decorator';
 import { Filtering } from 'src/core/decorators/filtering-params.decorator';
@@ -78,6 +78,57 @@ export class EnrollmentService {
     });
 
     return new SuccessResponse(enrollments);
+  }
+
+  async findByCourse(courseId: string): Promise<CommonResponse<Enrollment[]>> {
+    const enrollments = await this.enrollmentRepository.find({
+      where: { courseId },
+      relations: ['user'],
+      order: { createdAt: 'ASC' },
+    });
+
+    return new SuccessResponse(enrollments);
+  }
+
+  async findMyEnrollments(userId: string): Promise<CommonResponse<Enrollment[]>> {
+    const enrollments = await this.enrollmentRepository.find({
+      where: { userId },
+      relations: ['course', 'course.category', 'course.teacher', 'course.lessons'],
+      order: { lastAccessedAt: { direction: 'DESC', nulls: 'LAST' }, createdAt: 'DESC' },
+    });
+
+    return new SuccessResponse(enrollments);
+  }
+
+  async checkEnrollment(userId: string, courseId: string): Promise<CommonResponse<{ enrolled: boolean; enrollment: Enrollment | null }>> {
+    const enrollment = await this.enrollmentRepository.findOne({
+      where: { userId, courseId },
+    });
+
+    return new SuccessResponse({
+      enrolled: !!enrollment,
+      enrollment,
+    });
+  }
+
+  async updateProgress(id: string, userId: string, progress: number): Promise<CommonResponse<Enrollment>> {
+    const enrollment = await this.enrollmentRepository.findOne({
+      where: { id, userId },
+    });
+
+    if (!enrollment) {
+      return new ErrorResponse('Enrollment not found', HttpStatus.NOT_FOUND);
+    }
+
+    enrollment.progress = progress;
+    enrollment.lastAccessedAt = new Date();
+    if (progress >= 100) {
+      enrollment.status = EnrollmentStatus.COMPLETED;
+      enrollment.completedAt = new Date();
+    }
+
+    const updated = await this.enrollmentRepository.save(enrollment);
+    return new SuccessResponse(updated);
   }
 
   async update(id: string, updateEnrollmentDto: UpdateEnrollmentDto): Promise<CommonResponse<Enrollment>> {

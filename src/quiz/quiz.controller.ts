@@ -69,6 +69,12 @@ export class QuizController {
     return this.quizService.submitAttempt(attemptId, answers, score, correctAnswers);
   }
 
+  @Get('attempts/:attemptId')
+  @UseGuards(AuthGuard)
+  getAttemptById(@Param('attemptId') attemptId: string) {
+    return this.quizService.findAttemptById(attemptId);
+  }
+
   @Get(':id/attempts')
   @UseGuards(AuthGuard)
   getStudentAttempts(@Param('id') quizId: string, @CurrentUser() user: any) {

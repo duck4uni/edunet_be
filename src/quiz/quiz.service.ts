@@ -147,6 +147,19 @@ export class QuizService {
     return new SuccessResponse(updatedAttempt);
   }
 
+  async findAttemptById(attemptId: string): Promise<CommonResponse<QuizAttempt>> {
+    const attempt = await this.quizAttemptRepository.findOne({
+      where: { id: attemptId },
+      relations: ['quiz'],
+    });
+
+    if (!attempt) {
+      return new ErrorResponse('Attempt not found', HttpStatus.NOT_FOUND);
+    }
+
+    return new SuccessResponse(attempt);
+  }
+
   async getStudentAttempts(quizId: string, studentId: string): Promise<CommonResponse<QuizAttempt[]>> {
     const attempts = await this.quizAttemptRepository.find({
       where: { quizId, studentId },

@@ -11,8 +11,8 @@ export const IncludeRelations = createParamDecorator(
     const includeQuery = req.query.include as string;
     if (!includeQuery) return null;
 
-    // Split the include query into an array of included relations
-    const includes = includeQuery.split('|');
+    // Split the include query into an array of included relations (supports both '|' and ',' separators)
+    const includes = includeQuery.split(/[|,]/);
 
     return { include: includes };
   },
