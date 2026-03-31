@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, Req, UseGuards, UsePipes } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthService, LoginResponse } from './auth.service';
 import { BackendValidationPipe } from 'src/core/pipes/backendValidation.pipe';
 import { ExpressRequest } from 'src/core/types/express-request.interface';
@@ -7,6 +8,7 @@ import { AuthGuard } from 'src/core/guards/auth.guard';
 import { LoginDto, RegisterDto } from './dto';
 import { User } from 'src/user/entities/user.entity';
 
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -25,6 +27,7 @@ export class AuthController {
 
   @Get('/profile')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
   getProfile(@Req() request: ExpressRequest): CommonResponse<Omit<User, 'password'>> {
     return this.authService.getProfile(request);
   }
@@ -36,6 +39,7 @@ export class AuthController {
 
   @Post('/logout')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
   async logout(@Body('refreshToken') refreshToken: string): Promise<CommonResponse> {
     return await this.authService.logout(refreshToken);
   }

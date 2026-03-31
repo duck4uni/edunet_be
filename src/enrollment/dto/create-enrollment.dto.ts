@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsOptional, IsUUID, IsEnum, IsNumber } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { EnrollmentStatus } from '../entities/enrollment.entity';
 
 export class CreateEnrollmentDto {
@@ -16,5 +17,6 @@ export class CreateEnrollmentDto {
 
   @IsOptional()
   @IsEnum(EnrollmentStatus)
+  @ApiPropertyOptional({ enum: EnrollmentStatus })
   status?: EnrollmentStatus;
 }

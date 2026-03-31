@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsOptional, IsString, IsEnum, IsNumber, IsBoolean, IsUUID } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { LessonType } from '../entities/lesson.entity';
 
 export class CreateLessonDto {
@@ -12,6 +13,7 @@ export class CreateLessonDto {
 
   @IsOptional()
   @IsEnum(LessonType)
+  @ApiPropertyOptional({ enum: LessonType })
   type?: LessonType;
 
   @IsOptional()

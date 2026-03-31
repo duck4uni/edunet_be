@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { SupportTicketService } from './support-ticket.service';
 import { CreateSupportTicketDto } from './dto/create-support-ticket.dto';
 import { UpdateSupportTicketDto } from './dto/update-support-ticket.dto';
@@ -10,6 +11,8 @@ import { SortingParams, Sorting } from 'src/core/decorators/sorting-params.decor
 import { FilteringParams, Filtering } from 'src/core/decorators/filtering-params.decorator';
 import { IncludeRelations, Including } from 'src/core/decorators/including-params.decorator';
 
+@ApiTags('Support Tickets')
+@ApiBearerAuth('access-token')
 @Controller('support-tickets')
 @UseGuards(AuthGuard)
 export class SupportTicketController {

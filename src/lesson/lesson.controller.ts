@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { LessonService } from './lesson.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
@@ -8,12 +9,14 @@ import { SortingParams, Sorting } from 'src/core/decorators/sorting-params.decor
 import { FilteringParams, Filtering } from 'src/core/decorators/filtering-params.decorator';
 import { IncludeRelations, Including } from 'src/core/decorators/including-params.decorator';
 
+@ApiTags('Lessons')
 @Controller('lessons')
 export class LessonController {
   constructor(private readonly lessonService: LessonService) {}
 
   @Post()
   @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
   create(@Body() createLessonDto: CreateLessonDto) {
     return this.lessonService.create(createLessonDto);
   }
@@ -40,12 +43,14 @@ export class LessonController {
 
   @Patch(':id')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
   update(@Param('id') id: string, @Body() updateLessonDto: UpdateLessonDto) {
     return this.lessonService.update(id, updateLessonDto);
   }
 
   @Delete(':id')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
   remove(@Param('id') id: string) {
     return this.lessonService.remove(id);
   }
