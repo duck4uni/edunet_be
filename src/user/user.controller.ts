@@ -1,4 +1,5 @@
 import { Controller, Get, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AuthGuard } from 'src/core/guards/auth.guard';
@@ -7,6 +8,8 @@ import { SortingParams, Sorting } from 'src/core/decorators/sorting-params.decor
 import { FilteringParams, Filtering } from 'src/core/decorators/filtering-params.decorator';
 import { IncludeRelations, Including } from 'src/core/decorators/including-params.decorator';
 
+@ApiTags('Users')
+@ApiBearerAuth('access-token')
 @Controller('users')
 @UseGuards(AuthGuard)
 export class UserController {

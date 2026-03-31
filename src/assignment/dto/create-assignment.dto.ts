@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsOptional, IsString, IsEnum, IsUUID, IsDateString, IsNumber, IsObject } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { AssignmentStatus } from '../entities/assignment.entity';
 
 export class CreateAssignmentDto {
@@ -16,6 +17,7 @@ export class CreateAssignmentDto {
 
   @IsOptional()
   @IsEnum(AssignmentStatus)
+  @ApiPropertyOptional({ enum: AssignmentStatus })
   status?: AssignmentStatus;
 
   @IsOptional()

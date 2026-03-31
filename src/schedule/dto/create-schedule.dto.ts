@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsOptional, IsString, IsEnum, IsUUID, IsDateString, IsBoolean } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ScheduleType } from '../entities/schedule.entity';
 
 export class CreateScheduleDto {
@@ -12,6 +13,7 @@ export class CreateScheduleDto {
 
   @IsOptional()
   @IsEnum(ScheduleType)
+  @ApiPropertyOptional({ enum: ScheduleType })
   type?: ScheduleType;
 
   @IsNotEmpty()

@@ -1,4 +1,5 @@
 import { IsOptional, IsString, IsEnum, IsBoolean, IsDateString } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Gender } from '../entities/user.entity';
 
 export class UpdateUserDto {
@@ -28,6 +29,7 @@ export class UpdateUserDto {
 
   @IsOptional()
   @IsEnum(Gender)
+  @ApiPropertyOptional({ enum: Gender })
   gender?: Gender;
 
   @IsOptional()

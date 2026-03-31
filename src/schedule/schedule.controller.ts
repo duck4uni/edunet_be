@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ScheduleService } from './schedule.service';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
@@ -8,12 +9,14 @@ import { SortingParams, Sorting } from 'src/core/decorators/sorting-params.decor
 import { FilteringParams, Filtering } from 'src/core/decorators/filtering-params.decorator';
 import { IncludeRelations, Including } from 'src/core/decorators/including-params.decorator';
 
+@ApiTags('Schedules')
 @Controller('schedules')
 export class ScheduleController {
   constructor(private readonly scheduleService: ScheduleService) {}
 
   @Post()
   @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
   create(@Body() createScheduleDto: CreateScheduleDto) {
     return this.scheduleService.create(createScheduleDto);
   }
@@ -50,18 +53,21 @@ export class ScheduleController {
 
   @Get('teacher/:teacherId')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
   findByTeacher(@Param('teacherId') teacherId: string) {
     return this.scheduleService.findByTeacher(teacherId);
   }
 
   @Patch(':id')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
   update(@Param('id') id: string, @Body() updateScheduleDto: UpdateScheduleDto) {
     return this.scheduleService.update(id, updateScheduleDto);
   }
 
   @Delete(':id')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
   remove(@Param('id') id: string) {
     return this.scheduleService.remove(id);
   }

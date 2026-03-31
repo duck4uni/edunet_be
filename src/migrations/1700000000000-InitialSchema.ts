@@ -4,7 +4,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * Migration khởi tạo toàn bộ schema: 14 tables, 14 enums, indexes
  * Tạo cấu trúc database ban đầu cho hệ thống EduNet
  */
-export class InitialSchema1766768114709 implements MigrationInterface {
+export class InitialSchema1700000000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // ==================== ENUMS ====================
     await queryRunner.query(`

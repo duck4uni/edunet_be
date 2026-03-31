@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AssignmentService } from './assignment.service';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
@@ -8,12 +9,14 @@ import { SortingParams, Sorting } from 'src/core/decorators/sorting-params.decor
 import { FilteringParams, Filtering } from 'src/core/decorators/filtering-params.decorator';
 import { IncludeRelations, Including } from 'src/core/decorators/including-params.decorator';
 
+@ApiTags('Assignments')
 @Controller('assignments')
 export class AssignmentController {
   constructor(private readonly assignmentService: AssignmentService) {}
 
   @Post()
   @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
   create(@Body() createAssignmentDto: CreateAssignmentDto) {
     return this.assignmentService.create(createAssignmentDto);
   }
@@ -35,6 +38,7 @@ export class AssignmentController {
 
   @Get('student/:studentId')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
   findByStudent(@Param('studentId') studentId: string) {
     return this.assignmentService.findByStudent(studentId);
   }
@@ -46,18 +50,21 @@ export class AssignmentController {
 
   @Patch(':id')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
   update(@Param('id') id: string, @Body() updateAssignmentDto: UpdateAssignmentDto) {
     return this.assignmentService.update(id, updateAssignmentDto);
   }
 
   @Post(':id/submit')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
   submit(@Param('id') id: string, @Body('submissionUrl') submissionUrl: string) {
     return this.assignmentService.submit(id, submissionUrl);
   }
 
   @Post(':id/grade')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
   grade(
     @Param('id') id: string,
     @Body('grade') grade: number,
@@ -68,6 +75,7 @@ export class AssignmentController {
 
   @Delete(':id')
   @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
   remove(@Param('id') id: string) {
     return this.assignmentService.remove(id);
   }

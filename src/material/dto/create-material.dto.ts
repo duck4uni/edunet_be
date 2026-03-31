@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsOptional, IsString, IsEnum, IsUUID } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { MaterialType } from '../entities/material.entity';
 
 export class CreateMaterialDto {
@@ -12,6 +13,7 @@ export class CreateMaterialDto {
 
   @IsOptional()
   @IsEnum(MaterialType)
+  @ApiPropertyOptional({ enum: MaterialType })
   type?: MaterialType;
 
   @IsNotEmpty()

@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { EnrollmentService } from './enrollment.service';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
@@ -10,6 +11,8 @@ import { FilteringParams, Filtering } from 'src/core/decorators/filtering-params
 import { IncludeRelations, Including } from 'src/core/decorators/including-params.decorator';
 import { User } from 'src/user/entities/user.entity';
 
+@ApiTags('Enrollments')
+@ApiBearerAuth('access-token')
 @Controller('enrollments')
 @UseGuards(AuthGuard)
 export class EnrollmentController {

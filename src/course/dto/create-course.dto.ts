@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsOptional, IsString, IsNumber, IsEnum, IsArray, IsDateString, IsUUID } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { CourseLevel, CourseStatus } from '../entities/course.entity';
 
 export class CreateCourseDto {
@@ -28,10 +29,12 @@ export class CreateCourseDto {
 
   @IsOptional()
   @IsEnum(CourseStatus)
+  @ApiPropertyOptional({ enum: CourseStatus })
   status?: CourseStatus;
 
   @IsOptional()
   @IsEnum(CourseLevel)
+  @ApiPropertyOptional({ enum: CourseLevel })
   level?: CourseLevel;
 
   @IsOptional()
