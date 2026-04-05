@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, IsBoolean, IsUUID, IsObject } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsNumber, IsBoolean, IsUUID, IsArray } from 'class-validator';
 
 export class CreateQuizDto {
   @IsNotEmpty()
@@ -14,8 +14,8 @@ export class CreateQuizDto {
   duration?: number;
 
   @IsOptional()
-  @IsObject()
-  questions?: object;
+  @IsArray()
+  questions?: any[];
 
   @IsOptional()
   @IsNumber()
