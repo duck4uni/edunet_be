@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: edunet_postgres
+    environment:
+      POSTGRES_USER: ${DATABASE_USER:-postgres}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-123456}
+      POSTGRES_DB: ${DATABASE_DB:-edunet_db}
+      POSTGRES_SCHEMA: ${DATABASE_SCHEMA:-public}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${DATABASE_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DATABASE_USER:-postgres} -d ${DATABASE_DB:-edunet_db}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - edunet_network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: edunet_backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_HOST: ${DATABASE_HOST:-postgres}
+      DATABASE_PORT: ${DATABASE_PORT:-5432}
+      DATABASE_USER: ${DATABASE_USER:-postgres}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-123456}
+      DATABASE_DB: ${DATABASE_DB:-edunet_db}
+      DATABASE_SCHEMA: ${DATABASE_SCHEMA:-public}
+      PORT: ${PORT:-3000}
+      JWT_SECRET: ${JWT_SECRET:-your-jwt-secret-key-base64-encoded}
+      PASSWORD_SECRET: ${PASSWORD_SECRET:-your-password-secret}
+      FE_URL: ${FE_URL:-http://localhost:5173}
+      HOST: ${HOST:-0.0.0.0}
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - ./src:/app/src
+      - ./uploads:/app/uploads
+    networks:
+      - edunet_network
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  edunet_network:
+    driver: bridge
