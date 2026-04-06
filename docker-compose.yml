@@ -20,7 +20,7 @@ services:
       FE_URL: ${FE_URL:-http://localhost:5173}
       HOST: ${HOST:-0.0.0.0}
     ports:
-      - "${PORT:-3000}:3000"
+      - "3017:3017"
     volumes:
       - ./src:/app/src
       - ./uploads:/app/uploads

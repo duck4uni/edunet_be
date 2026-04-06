@@ -21,7 +21,7 @@ COPY src ./src
 RUN mkdir -p uploads
 
 # Expose port
-EXPOSE 3000
+EXPOSE 3017
 
 # Start the application (dev mode with watch)
 CMD ["npm", "run", "start:dev"]
