@@ -31,31 +31,8 @@ async function bootstrap() {
       return normalized;
     }
   };
-  const allowedOrigins = (process.env.CORS_ORIGINS || process.env.FE_URL || 'http://localhost:5173')
-    .split(',')
-    .map((origin) => normalizeOrigin(origin))
-    .filter(Boolean);
-  const appOrigin = `http://${printableHost}:${port}`;
-  const allowedOriginsSet = new Set<string>([
-    ...allowedOrigins,
-    appOrigin,
-    `http://localhost:${port}`,
-    `http://127.0.0.1:${port}`,
-  ]);
-
   app.enableCors({
-    origin: (origin, callback) => {
-      // Allow non-browser clients (Postman, server-to-server) that do not send Origin.
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      if (allowedOriginsSet.has(normalizeOrigin(origin))) {
-        return callback(null, true);
-      }
-
-      return callback(new Error(`Origin ${origin} is not allowed by CORS`), false);
-    },
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
