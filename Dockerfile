@@ -8,9 +8,14 @@ RUN apk add --no-cache dumb-init
 
 # Copy package files
 COPY package*.json ./
+COPY tsconfig*.json ./
+COPY nest-cli.json ./
 
 # Install all dependencies
 RUN npm ci
+
+# Copy all source code
+COPY src ./src
 
 # Create uploads directory
 RUN mkdir -p uploads
@@ -19,5 +24,4 @@ RUN mkdir -p uploads
 EXPOSE 3000
 
 # Start the application (dev mode with watch)
-# For production, build the app separately
 CMD ["npm", "run", "start:dev"]
