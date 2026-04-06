@@ -15,10 +15,13 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build the application
-RUN npm run build
+# Build the application - show errors
+RUN npm run build && echo "Build completed successfully" || (echo "Build failed" && exit 1)
 
-# Remove dev dependencies
+# Verify dist folder exists
+RUN ls -la dist/ || (echo "dist folder not found after build" && exit 1)
+
+# Remove dev dependencies, keep prod only
 RUN npm prune --omit=dev
 
 # Create uploads directory
