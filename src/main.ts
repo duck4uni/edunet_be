@@ -3,6 +3,8 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { HttpExceptionFilter } from './core/helpers';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 import * as dotenv from 'dotenv';
 
 /**
@@ -10,13 +12,17 @@ import * as dotenv from 'dotenv';
  */
 async function bootstrap() {
   dotenv.config();
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.useGlobalPipes(new ValidationPipe());
   app.useGlobalFilters(new HttpExceptionFilter());
   app.enableCors({
     origin: process.env.FE_URL || 'http://localhost:5173',
     credentials: true,
   });
+
+  // Serve uploaded files (CV PDFs etc.) as static assets
+  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
+
   app.setGlobalPrefix('api', {
     exclude: ['docs', 'docs-json', 'docs-yaml'],
   });
@@ -39,8 +45,18 @@ async function bootstrap() {
     },
   });
 
-  await app.listen(process.env.PORT || 3000);
-  console.log(`Application is running on: ${await app.getUrl()}`);
-  console.log(`Swagger docs: ${await app.getUrl()}/docs`);
+  const port = Number(process.env.PORT) || 3000;
+  const host = process.env.HOST || '127.0.0.1';
+
+  await app.listen(port, host);
+
+  const printableHost =
+    host === '127.0.0.1' || host === '::1' || host === '0.0.0.0' || host === '::'
+      ? 'localhost'
+      : host;
+  const baseUrl = `http://${printableHost}:${port}`;
+
+  console.log(`Application is running on: ${baseUrl}`);
+  console.log(`Swagger docs: ${baseUrl}/docs`);
 }
 void bootstrap();

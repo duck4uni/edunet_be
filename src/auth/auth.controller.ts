@@ -1,12 +1,14 @@
-import { Body, Controller, Get, Post, Req, UseGuards, UsePipes } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Post, Req, UploadedFile, UseGuards, UseInterceptors, UsePipes } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthService, LoginResponse } from './auth.service';
 import { BackendValidationPipe } from 'src/core/pipes/backendValidation.pipe';
 import { ExpressRequest } from 'src/core/types/express-request.interface';
 import { CommonResponse } from 'src/core/types/response';
 import { AuthGuard } from 'src/core/guards/auth.guard';
-import { LoginDto, RegisterDto } from './dto';
+import { LoginDto, RegisterDto, RegisterTeacherDto } from './dto';
 import { User } from 'src/user/entities/user.entity';
+import { cvUploadOptions } from 'src/core/config/upload.config';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -23,6 +25,34 @@ export class AuthController {
   @UsePipes(new BackendValidationPipe())
   async register(@Body() registerDto: RegisterDto): Promise<CommonResponse<LoginResponse>> {
     return await this.authService.register(registerDto);
+  }
+
+  @Post('/register/teacher')
+  @UseInterceptors(FileInterceptor('cv', cvUploadOptions))
+  @ApiOperation({ summary: 'Teacher registration with CV upload (PDF). Account requires admin approval.' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['firstName', 'email', 'password', 'cv'],
+      properties: {
+        firstName: { type: 'string' },
+        lastName: { type: 'string' },
+        email: { type: 'string', format: 'email' },
+        password: { type: 'string', minLength: 6 },
+        phone: { type: 'string' },
+        qualification: { type: 'string' },
+        experience: { type: 'number' },
+        bio: { type: 'string' },
+        cv: { type: 'string', format: 'binary', description: 'CV file (PDF only, max 5MB)' },
+      },
+    },
+  })
+  async registerTeacher(
+    @Body() dto: RegisterTeacherDto,
+    @UploadedFile() cv: Express.Multer.File,
+  ): Promise<CommonResponse<{ message: string }>> {
+    return await this.authService.registerTeacher(dto, cv);
   }
 
   @Get('/profile')

@@ -9,12 +9,19 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { Course } from '../../course/entities/course.entity';
+import { User } from '../../user/entities/user.entity';
 
 export enum ScheduleType {
   CLASS = 'class',
   EXAM = 'exam',
   ASSIGNMENT = 'assignment',
   EVENT = 'event',
+}
+
+export enum ScheduleStatus {
+  SCHEDULED = 'scheduled',
+  CANCELLED = 'cancelled',
+  POSTPONED = 'postponed',
 }
 
 @Entity({ name: 'Schedules' })
@@ -30,6 +37,12 @@ export class Schedule {
 
   @Column({ type: 'enum', enum: ScheduleType, default: ScheduleType.CLASS })
   type: ScheduleType;
+
+  @Column({ type: 'varchar', length: 50, default: ScheduleStatus.SCHEDULED })
+  status: ScheduleStatus;
+
+  @Column({ type: 'text', nullable: true })
+  cancelReason: string | null;
 
   @Column({ type: 'date' })
   date: Date;
@@ -58,6 +71,10 @@ export class Schedule {
 
   @Column({ type: 'uuid', name: 'teacherId', nullable: true })
   teacherId: string;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'teacherId' })
+  teacher: User;
 
   @CreateDateColumn({ type: 'timestamp with time zone' })
   createdAt: Date;

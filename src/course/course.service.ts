@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Course } from './entities/course.entity';
+import { Course, CourseStatus } from './entities/course.entity';
 import { Pagination } from 'src/core/decorators/pagination-params.decorator';
 import { Sorting } from 'src/core/decorators/sorting-params.decorator';
 import { Filtering } from 'src/core/decorators/filtering-params.decorator';
@@ -11,6 +11,8 @@ import { ErrorResponse, SuccessResponse } from 'src/core/responses/base.response
 import { CommonResponse, PaginationResponseInterface } from 'src/core/types/response';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
+import { UpdateCourseStatusDto } from './dto/update-course-status.dto';
+import { User, UserRole } from 'src/user/entities/user.entity';
 
 @Injectable()
 export class CourseService {
@@ -19,8 +21,18 @@ export class CourseService {
     private readonly courseRepository: Repository<Course>,
   ) {}
 
-  async create(createCourseDto: CreateCourseDto): Promise<CommonResponse<Course>> {
-    const course = this.courseRepository.create(createCourseDto);
+  async create(createCourseDto: CreateCourseDto, currentUser: User): Promise<CommonResponse<Course>> {
+    const isAdmin = currentUser.role === UserRole.ADMIN;
+
+    const course = this.courseRepository.create({
+      ...createCourseDto,
+      // Admin can assign to a specific teacher; teachers always own the course themselves
+      teacherId: isAdmin ? (createCourseDto.teacherId ?? currentUser.id) : currentUser.id,
+      // Admin-created courses are published immediately, no approval needed
+      status: isAdmin ? CourseStatus.PUBLISHED : CourseStatus.PENDING,
+      publishedAt: isAdmin ? new Date() : undefined,
+    });
+
     const savedCourse = await this.courseRepository.save(course);
     return new SuccessResponse(savedCourse, HttpStatus.CREATED);
   }
@@ -30,8 +42,16 @@ export class CourseService {
     sorts: Sorting[] | null,
     filters: Filtering[] | null,
     includes: Including | null,
+    currentUser?: User | null,
   ): Promise<CommonResponse<PaginationResponseInterface<Course>>> {
-    const where = filters ? getWhere(filters) : {};
+    let where: any = filters ? getWhere(filters) : {};
+
+    // Non-admin users only see published/approved courses unless they have an explicit status filter
+    const hasStatusFilter = filters?.some((f) => f.property === 'status');
+    if (!hasStatusFilter && (!currentUser || currentUser.role === UserRole.STUDENT)) {
+      where = { ...where, status: CourseStatus.PUBLISHED };
+    }
+
     const order = sorts ? getOrder(sorts) : { createdAt: 'DESC' };
     const relations = includes ? getRelations(includes) : [];
 
@@ -61,17 +81,100 @@ export class CourseService {
     return new SuccessResponse(course);
   }
 
-  async update(id: string, updateCourseDto: UpdateCourseDto): Promise<CommonResponse<Course>> {
+  async update(id: string, updateCourseDto: UpdateCourseDto, currentUser: User): Promise<CommonResponse<Course>> {
     const course = await this.courseRepository.findOne({ where: { id } });
 
     if (!course) {
       return new ErrorResponse('Course not found', HttpStatus.NOT_FOUND);
     }
 
+    // Teachers can only update their own courses and only when draft/pending/rejected
+    if (currentUser.role === UserRole.TEACHER) {
+      if (course.teacherId !== currentUser.id) {
+        return new ErrorResponse('Forbidden: you do not own this course', HttpStatus.FORBIDDEN);
+      }
+      const editableStatuses: CourseStatus[] = [CourseStatus.DRAFT, CourseStatus.REJECTED];
+      if (!editableStatuses.includes(course.status)) {
+        return new ErrorResponse(
+          'Course cannot be edited while it is pending or approved',
+          HttpStatus.UNPROCESSABLE_ENTITY,
+        );
+      }
+    }
+
     Object.assign(course, updateCourseDto);
     const updatedCourse = await this.courseRepository.save(course);
 
     return new SuccessResponse(updatedCourse);
+  }
+
+  async submitForReview(id: string, currentUser: User): Promise<CommonResponse<Course>> {
+    const course = await this.courseRepository.findOne({ where: { id } });
+
+    if (!course) {
+      return new ErrorResponse('Course not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (course.teacherId !== currentUser.id) {
+      return new ErrorResponse('Forbidden: you do not own this course', HttpStatus.FORBIDDEN);
+    }
+
+    const submittableStatuses: CourseStatus[] = [CourseStatus.DRAFT, CourseStatus.REJECTED];
+    if (!submittableStatuses.includes(course.status)) {
+      return new ErrorResponse(
+        `Cannot submit course with status "${course.status}" for review`,
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    course.status = CourseStatus.PENDING;
+    course.rejectionReason = null;
+    const saved = await this.courseRepository.save(course);
+    return new SuccessResponse(saved);
+  }
+
+  async updateStatus(id: string, dto: UpdateCourseStatusDto): Promise<CommonResponse<Course>> {
+    const course = await this.courseRepository.findOne({ where: { id } });
+
+    if (!course) {
+      return new ErrorResponse('Course not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (course.status !== CourseStatus.PENDING) {
+      return new ErrorResponse(
+        `Only courses with status "pending" can be reviewed. Current status: "${course.status}"`,
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    course.status = dto.status;
+    course.rejectionReason = dto.status === CourseStatus.REJECTED ? (dto.rejectionReason ?? null) : null;
+
+    if (dto.status === CourseStatus.APPROVED) {
+      course.publishedAt = new Date();
+    }
+
+    const saved = await this.courseRepository.save(course);
+    return new SuccessResponse(saved);
+  }
+
+  async publish(id: string): Promise<CommonResponse<Course>> {
+    const course = await this.courseRepository.findOne({ where: { id } });
+
+    if (!course) {
+      return new ErrorResponse('Course not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (course.status !== CourseStatus.APPROVED) {
+      return new ErrorResponse(
+        'Only approved courses can be published',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    course.status = CourseStatus.PUBLISHED;
+    const saved = await this.courseRepository.save(course);
+    return new SuccessResponse(saved);
   }
 
   async remove(id: string): Promise<CommonResponse> {
@@ -85,3 +188,4 @@ export class CourseService {
     return new SuccessResponse({ message: 'Course deleted successfully' });
   }
 }
+

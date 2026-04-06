@@ -40,6 +40,12 @@ export class Teacher {
   status: string;
 
   @Column({ type: 'text', nullable: true })
+  cvUrl: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  rejectionReason: string | null;
+
+  @Column({ type: 'text', nullable: true })
   bio: string;
 
   @Column({ type: 'jsonb', nullable: true })

@@ -12,10 +12,12 @@ import { Course } from '../../course/entities/course.entity';
 import { User } from '../../user/entities/user.entity';
 
 export enum EnrollmentStatus {
+  PENDING = 'pending',
   ACTIVE = 'active',
   COMPLETED = 'completed',
   DROPPED = 'dropped',
   EXPIRED = 'expired',
+  REJECTED = 'rejected',
 }
 
 @Entity({ name: 'Enrollments' })
@@ -40,7 +42,7 @@ export class Enrollment {
   @Column({ type: 'int', default: 0 })
   progress: number;
 
-  @Column({ type: 'enum', enum: EnrollmentStatus, default: EnrollmentStatus.ACTIVE })
+  @Column({ type: 'enum', enum: EnrollmentStatus, default: EnrollmentStatus.PENDING })
   status: EnrollmentStatus;
 
   @Column({ type: 'timestamp with time zone', nullable: true })

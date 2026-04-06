@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThan, Repository } from 'typeorm';
-import { LoginDto, RegisterDto } from './dto';
+import { LoginDto, RegisterDto, RegisterTeacherDto } from './dto';
 import { JwtService } from 'src/core/services/jwt.service';
 import { omit } from 'src/core/utils';
 import { ErrorMessages } from 'src/core/types';
@@ -9,6 +9,7 @@ import { ExpressRequest } from 'src/core/types/express-request.interface';
 import { User, UserRole } from 'src/user/entities/user.entity';
 import { Session } from 'src/session/entities/session.entity';
 import { PasswordResetToken } from 'src/password-reset/entities/password-reset.entity';
+import { Teacher } from 'src/teacher/entities/teacher.entity';
 import { generatePasswordResetToken } from 'src/core/utils/password-reset.utils';
 import { ErrorResponse, SuccessResponse } from 'src/core/responses/base.responses';
 import { CommonResponse } from 'src/core/types/response';
@@ -28,6 +29,8 @@ export class AuthService {
     private readonly sessionRepository: Repository<Session>,
     @InjectRepository(PasswordResetToken)
     private readonly passwordResetTokenRepository: Repository<PasswordResetToken>,
+    @InjectRepository(Teacher)
+    private readonly teacherRepository: Repository<Teacher>,
   ) {}
 
   /**
@@ -46,6 +49,13 @@ export class AuthService {
 
     if (!isPasswordMatch) {
       return new ErrorResponse('Invalid password', HttpStatus.BAD_REQUEST);
+    }
+
+    if (!user.isActive) {
+      return new ErrorResponse(
+        'Your account is pending approval. Please wait for admin review.',
+        HttpStatus.FORBIDDEN,
+      );
     }
 
     const token = new JwtService().generateJwtToken(user);
@@ -220,5 +230,60 @@ export class AuthService {
     await this.passwordResetTokenRepository.save(passwordResetToken);
 
     return new SuccessResponse({ message: 'Password reset successfully' });
+  }
+
+  async registerTeacher(
+    dto: RegisterTeacherDto,
+    cvFile: Express.Multer.File | undefined,
+  ): Promise<CommonResponse<{ message: string }>> {
+    const existing = await this.userRepository.findOne({
+      where: { email: dto.email.toLowerCase().trim() },
+    });
+
+    if (existing) {
+      const errorResponse = { errors: { email: 'Email has already been taken' } as ErrorMessages };
+      return new ErrorResponse(errorResponse, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    if (!cvFile) {
+      return new ErrorResponse('CV file (PDF) is required for teacher registration', HttpStatus.BAD_REQUEST);
+    }
+
+    const hashedPassword = await new JwtService().generateHashedPassword(dto.password);
+
+    // Create user with isActive=false — will be activated on admin approval
+    const newUser = this.userRepository.create({
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      email: dto.email.toLowerCase().trim(),
+      password: hashedPassword,
+      phone: dto.phone,
+      role: UserRole.TEACHER,
+      isActive: false,
+    });
+    const savedUser = await this.userRepository.save(newUser);
+
+    // Build CV URL — served as static file
+    const cvUrl = `/uploads/cv/${cvFile.filename}`;
+
+    const count = await this.teacherRepository.count({ withDeleted: true });
+    const teacherId = `TCH${String(count + 1).padStart(6, '0')}`;
+
+    const teacher = this.teacherRepository.create({
+      userId: savedUser.id,
+      teacherId,
+      qualification: dto.qualification,
+      specialization: dto.specialization,
+      experience: dto.experience,
+      bio: dto.bio,
+      cvUrl,
+      status: 'pending',
+    });
+    await this.teacherRepository.save(teacher);
+
+    return new SuccessResponse(
+      { message: 'Registration submitted successfully. Please wait for admin approval.' },
+      HttpStatus.CREATED,
+    );
   }
 }

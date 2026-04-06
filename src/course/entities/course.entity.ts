@@ -69,6 +69,9 @@ export class Course {
   @Column({ type: 'enum', enum: CourseStatus, default: CourseStatus.DRAFT })
   status: CourseStatus;
 
+  @Column({ type: 'text', nullable: true })
+  rejectionReason: string | null;
+
   @Column({ type: 'enum', enum: CourseLevel, default: CourseLevel.ALL })
   level: CourseLevel;
 

@@ -6,4 +6,5 @@ import mainConfig from './main';
 export default new DataSource({
   ...mainConfig,
   migrations: ['src/migrations/**/*.ts'],
+  migrationsTransactionMode: 'each',
 });

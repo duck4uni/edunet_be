@@ -100,13 +100,16 @@ export class EnrollmentService {
     return new SuccessResponse(enrollments);
   }
 
-  async checkEnrollment(userId: string, courseId: string): Promise<CommonResponse<{ enrolled: boolean; enrollment: Enrollment | null }>> {
+  async checkEnrollment(userId: string, courseId: string): Promise<CommonResponse<{ enrolled: boolean; isPending: boolean; enrollment: Enrollment | null }>> {
     const enrollment = await this.enrollmentRepository.findOne({
       where: { userId, courseId },
     });
 
     return new SuccessResponse({
-      enrolled: !!enrollment,
+      enrolled: enrollment
+        ? enrollment.status === EnrollmentStatus.ACTIVE || enrollment.status === EnrollmentStatus.COMPLETED
+        : false,
+      isPending: enrollment ? enrollment.status === EnrollmentStatus.PENDING : false,
       enrollment,
     });
   }
@@ -127,6 +130,38 @@ export class EnrollmentService {
       enrollment.completedAt = new Date();
     }
 
+    const updated = await this.enrollmentRepository.save(enrollment);
+    return new SuccessResponse(updated);
+  }
+
+  async approve(id: string): Promise<CommonResponse<Enrollment>> {
+    const enrollment = await this.enrollmentRepository.findOne({ where: { id } });
+
+    if (!enrollment) {
+      return new ErrorResponse('Enrollment not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (enrollment.status !== EnrollmentStatus.PENDING) {
+      return new ErrorResponse('Only pending enrollments can be approved', HttpStatus.BAD_REQUEST);
+    }
+
+    enrollment.status = EnrollmentStatus.ACTIVE;
+    const updated = await this.enrollmentRepository.save(enrollment);
+    return new SuccessResponse(updated);
+  }
+
+  async reject(id: string): Promise<CommonResponse<Enrollment>> {
+    const enrollment = await this.enrollmentRepository.findOne({ where: { id } });
+
+    if (!enrollment) {
+      return new ErrorResponse('Enrollment not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (enrollment.status !== EnrollmentStatus.PENDING) {
+      return new ErrorResponse('Only pending enrollments can be rejected', HttpStatus.BAD_REQUEST);
+    }
+
+    enrollment.status = EnrollmentStatus.REJECTED;
     const updated = await this.enrollmentRepository.save(enrollment);
     return new SuccessResponse(updated);
   }

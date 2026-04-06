@@ -78,6 +78,16 @@ export class EnrollmentController {
     return this.enrollmentService.update(id, updateEnrollmentDto);
   }
 
+  @Patch(':id/approve')
+  approve(@Param('id') id: string) {
+    return this.enrollmentService.approve(id);
+  }
+
+  @Patch(':id/reject')
+  reject(@Param('id') id: string) {
+    return this.enrollmentService.reject(id);
+  }
+
   @Patch(':id/progress')
   updateProgress(
     @CurrentUser() user: User,
