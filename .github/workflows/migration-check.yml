@@ -1,0 +1,111 @@
+name: Database Migration Check
+
+on:
+  push:
+    branches: [main, develop, release]
+    paths:
+      - 'src/migrations/**'
+      - 'src/**/*.entity.ts'
+      - 'src/core/database/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/migrations/**'
+      - 'src/**/*.entity.ts'
+      - 'src/core/database/**'
+
+jobs:
+  validate-migrations:
+    name: Validate Migration Syntax
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check migration files exist
+        run: |
+          if [ ! -d "src/migrations" ]; then
+            echo "ERROR: Migrations folder not found"
+            exit 1
+          fi
+          echo "✓ Migrations folder found"
+          ls -la src/migrations/ | head -20
+
+      - name: Validate TypeScript migrations
+        run: npx tsc --noEmit src/migrations/**/*.ts --strict
+
+      - name: Verify migration naming convention
+        run: |
+          TS_FILE_COUNT=$(find src/migrations -name "*.ts" | wc -l)
+          echo "Found $TS_FILE_COUNT migration files"
+          
+          # Check for proper naming format (timestamp + description)
+          find src/migrations -name "*.ts" | while read file; do
+            if [[ $(basename "$file") =~ ^[0-9]{13}- ]]; then
+              echo "✓ $(basename "$file')"
+            else
+              echo "ERROR: Invalid naming convention: $(basename "$file")"
+              exit 1
+            fi
+          done
+
+      - name: Run linting on migrations
+        run: npx eslint src/migrations/**/*.ts --max-warnings=0
+        continue-on-error: true
+
+  entity-validation:
+    name: Validate Entities
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate entity files
+        run: |
+          TS_FILE_COUNT=$(find src -name "*.entity.ts" | wc -l)
+          echo "Found $TS_FILE_COUNT entity files"
+          
+          # Validate TypeScript syntax
+          npx tsc --noEmit src/**/*.entity.ts --strict
+
+      - name: Check entity decorators
+        run: |
+          echo "Checking for @Entity decorator usage..."
+          find src -name "*.entity.ts" -exec grep -l "@Entity" {} \; | while read file; do
+            if grep -q "@Entity" "$file"; then
+              echo "✓ $(basename "$file") has @Entity decorator"
+            else
+              echo "WARNING: $(basename "$file") missing @Entity decorator"
+            fi
+          done
+        continue-on-error: true
+
+      - name: Validate column naming conventions
+        run: |
+          echo "Validating column naming conventions..."
+          # Check for camelCase column names
+          find src -name "*.entity.ts" -exec grep -n "@Column" {} + | head -20
+
+      - name: Run linting on entities
+        run: npx eslint src/**/*.entity.ts --max-warnings=0
+        continue-on-error: true

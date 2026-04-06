@@ -34,6 +34,10 @@ async function bootstrap() {
       return callback(new Error(`Origin ${origin} is not allowed by CORS`), false);
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Content-Length', 'Content-Range'],
+    maxAge: 3600,
   });
 
   // Serve uploaded files (CV PDFs etc.) as static assets
@@ -48,7 +52,7 @@ async function bootstrap() {
     .setTitle('EduNet API')
     .setDescription('EduNet Learning Platform Backend API')
     .setVersion('1.0')
-    .addServer('/') 
+    .addServer('/gateway/edunet')
     .addBearerAuth(
       { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
       'access-token',
