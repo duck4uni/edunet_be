@@ -68,6 +68,16 @@ Rule filter ho tro: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `like`, `nlike`, `in`
   - `password: string` (required, min 6)
   - `phone?: string`
   - `role?: 'admin' | 'teacher' | 'student'`
+- `RegisterTeacherDto` (multipart form-data)
+  - `firstName: string` (required)
+  - `lastName?: string`
+  - `email: string` (required, email)
+  - `password: string` (required, min 6)
+  - `phone?: string`
+  - `qualification?: string`
+  - `experience?: number`
+  - `bio?: string`
+  - `cv: File` (required, PDF only, max 5MB)
 - `RefreshTokenBody`
   - `refreshToken: string` (required)
 - `LogoutBody`
@@ -113,7 +123,6 @@ Rule filter ho tro: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `like`, `nlike`, `in`
   - `price?: number`
   - `discountPrice?: number`
   - `duration?: string`
-  - `status?: 'draft' | 'pending' | 'approved' | 'rejected' | 'published' | 'archived'`
   - `level?: 'beginner' | 'intermediate' | 'advanced' | 'all'`
   - `language?: string`
   - `tags?: string[]`
@@ -123,6 +132,9 @@ Rule filter ho tro: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `like`, `nlike`, `in`
   - `categoryId?: uuid`
   - `teacherId: uuid` (required)
 - `UpdateCourseDto = Partial<CreateCourseDto>`
+- `UpdateCourseStatusDto`
+  - `status: 'approved' | 'rejected'` (required)
+  - `feedback?: string` (optional, for rejection reason)
 
 ### 4.5 Lesson
 
@@ -237,6 +249,8 @@ Rule filter ho tro: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `like`, `nlike`, `in`
   - `bio?: string`
   - `socialLinks?: { linkedin?: string; twitter?: string; website?: string }`
 - `UpdateTeacherDto = Partial<CreateTeacherDto>`
+- `RejectTeacherDto`
+  - `reason?: string` (optional, rejection reason)
 
 ### 4.13 Student
 
@@ -282,15 +296,16 @@ Ghi chu:
 
 ### 5.2 Auth
 
-| Method | Endpoint | Auth | Payload | Response |
-|---|---|---|---|---|
-| POST | `/api/auth/login` | No | body: `LoginDto` | `CommonResponse<{ user: Omit<User,'password'>; accessToken: string; refreshToken: string }>` |
-| POST | `/api/auth/register` | No | body: `RegisterDto` | `CommonResponse<{ user: Omit<User,'password'>; accessToken: string; refreshToken: string }>` |
-| GET | `/api/auth/profile` | Yes | - | `CommonResponse<Omit<User,'password'>>` |
-| POST | `/api/auth/refresh` | No | body: `RefreshTokenBody` | `CommonResponse<{ accessToken: string }>` |
-| POST | `/api/auth/logout` | Yes | body: `LogoutBody` | `CommonResponse<{ message: string }>` |
-| POST | `/api/auth/forgot-password` | No | body: `ForgotPasswordBody` | `CommonResponse<{ message: string }>` |
-| POST | `/api/auth/reset-password` | No | body: `ResetPasswordBody` | `CommonResponse<{ message: string }>` |
+| Method | Endpoint | Auth | Payload | Response | Notes |
+|---|---|---|---|---|---|
+| POST | `/api/auth/login` | No | body: `LoginDto` | `CommonResponse<{ user: User; accessToken: string; refreshToken: string }>` | - |
+| POST | `/api/auth/register` | No | body: `RegisterDto` | `CommonResponse<{ user: User; accessToken: string; refreshToken: string }>` | - |
+| POST | `/api/auth/register/teacher` | No | body: `RegisterTeacherDto` (multipart) + file: `cv` (PDF, max 5MB) | `CommonResponse<{ message: string }>` | Teacher account requires admin approval |
+| GET | `/api/auth/profile` | Yes | - | `CommonResponse<User>` | Get current user profile |
+| POST | `/api/auth/refresh` | No | body: `refreshToken: string` | `CommonResponse<{ accessToken: string }>` | Refresh access token |
+| POST | `/api/auth/logout` | Yes | body: `refreshToken: string` | `CommonResponse<{ message: string }>` | - |
+| POST | `/api/auth/forgot-password` | No | body: `email: string` | `CommonResponse<{ message: string }>` | Send reset link to email |
+| POST | `/api/auth/reset-password` | No | body: `token: string, password: string` | `CommonResponse<{ message: string }>` | - |
 
 ### 5.3 Users
 
@@ -313,13 +328,16 @@ Ghi chu:
 
 ### 5.5 Courses
 
-| Method | Endpoint | Auth | Payload | Response |
-|---|---|---|---|---|
-| POST | `/api/courses` | Yes | body: `CreateCourseDto` | `CommonResponse<Course>` |
-| GET | `/api/courses` | No | query: pagination/sort/filter/include | `CommonResponse<PaginationResponseInterface<Course>>` |
-| GET | `/api/courses/:id` | No | params: `id`, query: `include` (optional) | `CommonResponse<Course>` |
-| PATCH | `/api/courses/:id` | Yes | params: `id`, body: `UpdateCourseDto` | `CommonResponse<Course>` |
-| DELETE | `/api/courses/:id` | Yes | params: `id` | `CommonResponse<{ message: string }>` |
+| Method | Endpoint | Auth | Payload | Response | Notes |
+|---|---|---|---|---|---|
+| POST | `/api/courses` | Yes (Teacher/Admin) | body: `CreateCourseDto` | `CommonResponse<Course>` | Teacher: status→`pending`; Admin: status→`published` |
+| GET | `/api/courses` | No | query: pagination/sort/filter/include | `CommonResponse<PaginationResponseInterface<Course>>` | Students see published only |
+| GET | `/api/courses/:id` | No | params: `id`, query: `include` (optional) | `CommonResponse<Course>` | - |
+| PATCH | `/api/courses/:id` | Yes (Teacher/Admin) | params: `id`, body: `UpdateCourseDto` | `CommonResponse<Course>` | Teacher updates own draft/rejected; Admin updates any |
+| PATCH | `/api/courses/:id/submit` | Yes (Teacher) | params: `id` | `CommonResponse<Course>` | Submit draft/rejected course for review (status→`pending`) |
+| PATCH | `/api/courses/:id/review` | Yes (Admin) | params: `id`, body: `UpdateCourseStatusDto` | `CommonResponse<Course>` | Admin approves/rejects pending course |
+| PATCH | `/api/courses/:id/publish` | Yes (Admin) | params: `id` | `CommonResponse<Course>` | Publish approved course (status→`published`) |
+| DELETE | `/api/courses/:id` | Yes (Teacher/Admin) | params: `id` | `CommonResponse<{ message: string }>` | - |
 
 ### 5.6 Lessons
 
@@ -388,47 +406,51 @@ Ghi chu:
 
 ### 5.11 Enrollments
 
-> **Luồng đăng ký khóa học:** Khi học sinh đăng ký (`POST /enroll`), enrollment được tạo với `status: pending`. Giáo viên/admin phê duyệt qua `PATCH /:id/approve` → status chuyển thành `active`. Từ chối qua `PATCH /:id/reject` → status chuyển thành `rejected`.
+> **Course enrollment flow:** When student enrolls (`POST /enroll`), enrollment is created with `status: pending`. Teacher/Admin approves via `PATCH /:id/approve` → status changes to `active`. Reject via `PATCH /:id/reject` → status changes to `rejected`.
 
-| Method | Endpoint | Auth | Payload | Response |
-|---|---|---|---|---|
-| POST | `/api/enrollments` | Yes | body: `CreateEnrollmentDto` | `CommonResponse<Enrollment>` |
-| POST | `/api/enrollments/enroll` | Yes | body: `EnrollBody` | `CommonResponse<Enrollment>` — status=`pending` |
-| GET | `/api/enrollments/my-enrollments` | Yes | - | `CommonResponse<Enrollment[]>` |
-| GET | `/api/enrollments/check/:courseId` | Yes | params: `courseId` | `CommonResponse<{ enrolled: boolean; isPending: boolean; enrollment: Enrollment \| null }>` |
-| GET | `/api/enrollments` | Yes | query: pagination/sort/filter/include | `CommonResponse<PaginationResponseInterface<Enrollment>>` |
-| GET | `/api/enrollments/course/:courseId` | Yes | params: `courseId` | `CommonResponse<Enrollment[]>` |
-| GET | `/api/enrollments/:id` | Yes | params: `id` | `CommonResponse<Enrollment>` |
-| GET | `/api/enrollments/user/:userId` | Yes | params: `userId` | `CommonResponse<Enrollment[]>` |
-| PATCH | `/api/enrollments/:id/approve` | Yes | params: `id` | `CommonResponse<Enrollment>` — status → `active` |
-| PATCH | `/api/enrollments/:id/reject` | Yes | params: `id` | `CommonResponse<Enrollment>` — status → `rejected` |
-| PATCH | `/api/enrollments/:id` | Yes | params: `id`, body: `UpdateEnrollmentDto` | `CommonResponse<Enrollment>` |
-| PATCH | `/api/enrollments/:id/progress` | Yes | params: `id`, body: `UpdateProgressBody` | `CommonResponse<Enrollment>` |
-| DELETE | `/api/enrollments/:id` | Yes | params: `id` | `CommonResponse<{ message: string }>` |
+| Method | Endpoint | Auth | Payload | Response | Notes |
+|---|---|---|---|---|---|
+| POST | `/api/enrollments` | Yes | body: `CreateEnrollmentDto` | `CommonResponse<Enrollment>` | Direct enrollment create |
+| POST | `/api/enrollments/enroll` | Yes | body: `courseId: string` | `CommonResponse<Enrollment>` | Enroll current user in course (status=`pending`) |
+| GET | `/api/enrollments/my-enrollments` | Yes | - | `CommonResponse<Enrollment[]>` | Get all enrollments of current user with course details |
+| GET | `/api/enrollments/check/:courseId` | Yes | params: `courseId` | `CommonResponse<{ enrolled: boolean; isPending: boolean; enrollment: Enrollment \| null }>` | Check enrollment status for course |
+| GET | `/api/enrollments` | Yes | query: pagination/sort/filter/include | `CommonResponse<PaginationResponseInterface<Enrollment>>` | - |
+| GET | `/api/enrollments/course/:courseId` | Yes | params: `courseId` | `CommonResponse<Enrollment[]>` | Get all students enrolled in course |
+| GET | `/api/enrollments/:id` | Yes | params: `id` | `CommonResponse<Enrollment>` | - |
+| GET | `/api/enrollments/user/:userId` | Yes | params: `userId` | `CommonResponse<Enrollment[]>` | Get all enrollments for specific user |
+| PATCH | `/api/enrollments/:id/approve` | Yes | params: `id` | `CommonResponse<Enrollment>` | Approve enrollment (status→`active`) |
+| PATCH | `/api/enrollments/:id/reject` | Yes | params: `id` | `CommonResponse<Enrollment>` | Reject enrollment (status→`rejected`) |
+| PATCH | `/api/enrollments/:id` | Yes | params: `id`, body: `UpdateEnrollmentDto` | `CommonResponse<Enrollment>` | Update enrollment details |
+| PATCH | `/api/enrollments/:id/progress` | Yes | params: `id`, body: `progress: number` | `CommonResponse<Enrollment>` | Update student progress |
+| DELETE | `/api/enrollments/:id` | Yes | params: `id` | `CommonResponse<{ message: string }>` | - |
 
 ### 5.12 Schedules
 
-| Method | Endpoint | Auth | Payload | Response |
-|---|---|---|---|---|
-| POST | `/api/schedules` | Yes | body: `CreateScheduleDto` | `CommonResponse<Schedule>` |
-| GET | `/api/schedules` | No | query: pagination/sort/filter/include | `CommonResponse<PaginationResponseInterface<Schedule>>` |
-| GET | `/api/schedules/upcoming` | No | query: `days?: number` (default 7) | `CommonResponse<Schedule[]>` |
-| GET | `/api/schedules/date-range` | No | query: `startDate`, `endDate` | `CommonResponse<Schedule[]>` |
-| GET | `/api/schedules/:id` | No | params: `id` | `CommonResponse<Schedule>` |
-| GET | `/api/schedules/course/:courseId` | No | params: `courseId` | `CommonResponse<Schedule[]>` |
-| GET | `/api/schedules/teacher/:teacherId` | Yes | params: `teacherId` | `CommonResponse<Schedule[]>` |
-| PATCH | `/api/schedules/:id` | Yes | params: `id`, body: `UpdateScheduleDto` | `CommonResponse<Schedule>` |
-| DELETE | `/api/schedules/:id` | Yes | params: `id` | `CommonResponse<{ message: string }>` |
+| Method | Endpoint | Auth | Payload | Response | Notes |
+|---|---|---|---|---|---|
+| POST | `/api/schedules` | Yes (Teacher/Admin) | body: `CreateScheduleDto` | `CommonResponse<Schedule>` | Create single schedule |
+| GET | `/api/schedules` | No | query: pagination/sort/filter/include | `CommonResponse<PaginationResponseInterface<Schedule>>` | List all schedules |
+| GET | `/api/schedules/my` | Yes | - | `CommonResponse<Schedule[]>` | Student's personalized timetable based on active enrollments |
+| GET | `/api/schedules/weekly` | No | query: `weekStart` (YYYY-MM-DD), `courseId?`, `teacherId?` | `CommonResponse<Schedule[]>` | Week view - group schedules by date for calendar UI |
+| GET | `/api/schedules/upcoming` | No | query: `days?` (default 7) | `CommonResponse<Schedule[]>` | Upcoming schedules within N days |
+| GET | `/api/schedules/date-range` | No | query: `startDate` (YYYY-MM-DD), `endDate` (YYYY-MM-DD) | `CommonResponse<Schedule[]>` | Schedules between two dates |
+| GET | `/api/schedules/:id` | No | params: `id` | `CommonResponse<Schedule>` | Get single schedule |
+| GET | `/api/schedules/course/:courseId` | No | params: `courseId` | `CommonResponse<Schedule[]>` | All schedules for a course |
+| GET | `/api/schedules/teacher/:teacherId` | Yes | params: `teacherId` | `CommonResponse<Schedule[]>` | All schedules assigned to teacher |
+| PATCH | `/api/schedules/:id` | Yes | params: `id`, body: `UpdateScheduleDto` | `CommonResponse<Schedule>` | Update schedule |
+| DELETE | `/api/schedules/:id` | Yes | params: `id` | `CommonResponse<{ message: string }>` | Delete schedule |
 
 ### 5.13 Teachers
 
-| Method | Endpoint | Auth | Payload | Response |
-|---|---|---|---|---|
-| POST | `/api/teachers` | Yes | body: `CreateTeacherDto` | `CommonResponse<Teacher>` |
-| GET | `/api/teachers` | No | query: pagination/sort/filter/include | `CommonResponse<PaginationResponseInterface<Teacher>>` |
-| GET | `/api/teachers/:id` | No | params: `id` | `CommonResponse<Teacher>` |
-| PATCH | `/api/teachers/:id` | Yes | params: `id`, body: `UpdateTeacherDto` | `CommonResponse<Teacher>` |
-| DELETE | `/api/teachers/:id` | Yes | params: `id` | `CommonResponse<{ message: string }>` |
+| Method | Endpoint | Auth | Payload | Response | Notes |
+|---|---|---|---|---|---|
+| POST | `/api/teachers` | Yes (Admin) | body: `CreateTeacherDto` | `CommonResponse<Teacher>` | Create teacher profile (admin only) |
+| GET | `/api/teachers` | Yes (Admin) | query: pagination/sort/filter/include | `CommonResponse<PaginationResponseInterface<Teacher>>` | List teachers (admin only) |
+| GET | `/api/teachers/:id` | Yes | params: `id` | `CommonResponse<Teacher>` | Get teacher profile |
+| PATCH | `/api/teachers/:id/approve` | Yes (Admin) | params: `id` | `CommonResponse<Teacher>` | Approve pending teacher registration - activates account |
+| PATCH | `/api/teachers/:id/reject` | Yes (Admin) | params: `id`, body: `RejectTeacherDto` | `CommonResponse<Teacher>` | Reject pending teacher registration |
+| PATCH | `/api/teachers/:id` | Yes (Admin/Teacher) | params: `id`, body: `UpdateTeacherDto` | `CommonResponse<Teacher>` | Update teacher profile |
+| DELETE | `/api/teachers/:id` | Yes (Admin) | params: `id` | `CommonResponse<{ message: string }>` | - |
 
 ### 5.14 Students
 
@@ -458,4 +480,40 @@ Ghi chu:
 
 ---
 
-Cap nhat theo source hien tai trong controllers/services cua du an. Neu ban muon, minh co the tao them mot ban JSON/OpenAPI-like de FE import thang vao Postman.
+## 6) API Summary
+
+- **Total Endpoints:** 117+
+- **Protected Endpoints:** ~87 (74%)
+- **Public Endpoints:** ~30 (26%)
+- **Modules:** 15 (Auth, Users, Courses, Enrollments, Lessons, Materials, Assignments, Quizzes, Reviews, Schedules, Teachers, Students, Support Tickets, Categories, App)
+
+## 7) Key Features & Workflows
+
+### Course Approval Flow
+1. Teacher creates course → status: `draft`
+2. Teacher submits course → status: `pending`
+3. Admin reviews via `PATCH /courses/:id/review` → status: `approved` or `rejected`
+4. Admin publishes → status: `published`
+
+### Enrollment Flow
+1. Student enrolls via `POST /api/enrollments/enroll` → status: `pending`
+2. Teacher/Admin approves via `PATCH /api/enrollments/:id/approve` → status: `active`
+3. Or reject via `PATCH /api/enrollments/:id/reject` → status: `rejected`
+
+### Teacher Registration Flow
+1. User registers with CV via `POST /api/auth/register/teacher` → account status: `pending`
+2. Admin approves via `PATCH /api/teachers/:id/approve` → account activated
+3. Or reject via `PATCH /api/teachers/:id/reject` → account remains inactive
+
+## 8) Notes for Frontend Integration
+
+- Tất cả endpoints đều hỗ trợ quy chuẩn query params (pagination, sort, filter, include relations)
+- Swagger documentation available tại `/docs`
+- Các endpoint Protected yêu cầu Bearer token trong Authorization header
+- Response structure luôn là `{ success: boolean, statusCode: number, data: T }`
+- Error responses từ HttpException: `{ statusCode: number, message: string }`
+
+---
+
+Cập nhật theo source hiện tại trong controllers/services của dự án. 
+Nếu cần thêm chi tiết, có thể tạo bản JSON/OpenAPI để FE import trực tiếp vào Postman.
