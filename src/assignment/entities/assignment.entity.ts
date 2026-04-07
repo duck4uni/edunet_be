@@ -53,6 +53,9 @@ export class Assignment {
   @Column({ type: 'timestamp with time zone', nullable: true })
   submittedAt: Date;
 
+  @Column({ type: 'boolean', default: true })
+  isVisible: boolean;
+
   @Column({ type: 'uuid', name: 'courseId' })
   courseId: string;
 

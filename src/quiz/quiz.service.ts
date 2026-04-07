@@ -62,9 +62,13 @@ export class QuizService {
     return new SuccessResponse(quiz);
   }
 
-  async findByCourse(courseId: string): Promise<CommonResponse<Quiz[]>> {
+  async findByCourse(courseId: string, visibleOnly = false): Promise<CommonResponse<Quiz[]>> {
+    const where: any = { courseId };
+    if (visibleOnly) {
+      where.isVisible = true;
+    }
     const quizzes = await this.quizRepository.find({
-      where: { courseId },
+      where,
       order: { createdAt: 'DESC' },
     });
 
@@ -179,5 +183,48 @@ export class QuizService {
       .getRawOne();
 
     return new SuccessResponse({ bestScore: result?.bestScore || 0 });
+  }
+
+  async getMyProgress(courseId: string, studentId: string): Promise<CommonResponse<Record<string, { attempts: number; bestScore: number; status: string }>>> {
+    // Get all quizzes for this course
+    const quizzes = await this.quizRepository.find({ where: { courseId } });
+    const quizIds = quizzes.map(q => q.id);
+
+    if (quizIds.length === 0) {
+      return new SuccessResponse({});
+    }
+
+    // Get all attempts for this student across all quizzes in the course
+    const attempts = await this.quizAttemptRepository
+      .createQueryBuilder('attempt')
+      .where('attempt.quizId IN (:...quizIds)', { quizIds })
+      .andWhere('attempt.studentId = :studentId', { studentId })
+      .getMany();
+
+    // Build progress map
+    const progressMap: Record<string, { attempts: number; bestScore: number; status: string }> = {};
+    for (const quiz of quizzes) {
+      const quizAttempts = attempts.filter(a => a.quizId === quiz.id);
+      const completedAttempts = quizAttempts.filter(a => a.status === AttemptStatus.COMPLETED);
+      const inProgressAttempts = quizAttempts.filter(a => a.status === AttemptStatus.IN_PROGRESS);
+      const bestScore = completedAttempts.length > 0
+        ? Math.max(...completedAttempts.map(a => Number(a.score) || 0))
+        : 0;
+
+      let status = 'not-started';
+      if (completedAttempts.length > 0) {
+        status = 'completed';
+      } else if (inProgressAttempts.length > 0) {
+        status = 'in-progress';
+      }
+
+      progressMap[quiz.id] = {
+        attempts: quizAttempts.length,
+        bestScore,
+        status,
+      };
+    }
+
+    return new SuccessResponse(progressMap);
   }
 }

@@ -48,6 +48,9 @@ export class Quiz {
   @Column({ type: 'boolean', default: true })
   showCorrectAnswers: boolean;
 
+  @Column({ type: 'boolean', default: true })
+  isVisible: boolean;
+
   @Column({ type: 'uuid', name: 'courseId' })
   courseId: string;
 

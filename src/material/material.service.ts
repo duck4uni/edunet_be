@@ -59,9 +59,13 @@ export class MaterialService {
     return new SuccessResponse(material);
   }
 
-  async findByCourse(courseId: string): Promise<CommonResponse<Material[]>> {
+  async findByCourse(courseId: string, visibleOnly = false): Promise<CommonResponse<Material[]>> {
+    const where: any = { courseId };
+    if (visibleOnly) {
+      where.isVisible = true;
+    }
     const materials = await this.materialRepository.find({
-      where: { courseId },
+      where,
       order: { createdAt: 'DESC' },
     });
 

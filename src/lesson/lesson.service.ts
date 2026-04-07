@@ -59,9 +59,13 @@ export class LessonService {
     return new SuccessResponse(lesson);
   }
 
-  async findByCourse(courseId: string): Promise<CommonResponse<Lesson[]>> {
+  async findByCourse(courseId: string, visibleOnly = false): Promise<CommonResponse<Lesson[]>> {
+    const where: any = { courseId };
+    if (visibleOnly) {
+      where.isVisible = true;
+    }
     const lessons = await this.lessonRepository.find({
-      where: { courseId },
+      where,
       order: { order: 'ASC' },
     });
 

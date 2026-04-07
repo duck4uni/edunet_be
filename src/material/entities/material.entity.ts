@@ -38,6 +38,9 @@ export class Material {
   @Column({ type: 'varchar', length: 50, nullable: true })
   size: string;
 
+  @Column({ type: 'boolean', default: true })
+  isVisible: boolean;
+
   @Column({ type: 'uuid', name: 'courseId' })
   courseId: string;
 

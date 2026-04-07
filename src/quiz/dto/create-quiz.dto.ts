@@ -37,6 +37,10 @@ export class CreateQuizDto {
   @IsBoolean()
   showCorrectAnswers?: boolean;
 
+  @IsOptional()
+  @IsBoolean()
+  isVisible?: boolean;
+
   @IsNotEmpty()
   @IsUUID()
   courseId: string;
