@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { MaterialService } from './material.service';
 import { CreateMaterialDto } from './dto/create-material.dto';
@@ -37,8 +37,11 @@ export class MaterialController {
   }
 
   @Get('course/:courseId')
-  findByCourse(@Param('courseId') courseId: string) {
-    return this.materialService.findByCourse(courseId);
+  findByCourse(
+    @Param('courseId') courseId: string,
+    @Query('visibleOnly') visibleOnly?: string,
+  ) {
+    return this.materialService.findByCourse(courseId, visibleOnly === 'true');
   }
 
   @Patch(':id')

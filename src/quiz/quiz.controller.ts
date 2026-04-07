@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { QuizService } from './quiz.service';
 import { CreateQuizDto } from './dto/create-quiz.dto';
@@ -38,8 +38,11 @@ export class QuizController {
   }
 
   @Get('course/:courseId')
-  findByCourse(@Param('courseId') courseId: string) {
-    return this.quizService.findByCourse(courseId);
+  findByCourse(
+    @Param('courseId') courseId: string,
+    @Query('visibleOnly') visibleOnly?: string,
+  ) {
+    return this.quizService.findByCourse(courseId, visibleOnly === 'true');
   }
 
   @Patch(':id')
@@ -95,5 +98,12 @@ export class QuizController {
   @ApiBearerAuth('access-token')
   getBestScore(@Param('id') quizId: string, @CurrentUser() user: any) {
     return this.quizService.getBestScore(quizId, user.id);
+  }
+
+  @Get('course/:courseId/my-progress')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
+  getMyProgress(@Param('courseId') courseId: string, @CurrentUser() user: any) {
+    return this.quizService.getMyProgress(courseId, user.id);
   }
 }

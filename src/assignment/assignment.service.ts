@@ -69,9 +69,13 @@ export class AssignmentService {
     return new SuccessResponse(assignments);
   }
 
-  async findByCourse(courseId: string): Promise<CommonResponse<Assignment[]>> {
+  async findByCourse(courseId: string, visibleOnly = false): Promise<CommonResponse<Assignment[]>> {
+    const where: any = { courseId };
+    if (visibleOnly) {
+      where.isVisible = true;
+    }
     const assignments = await this.assignmentRepository.find({
-      where: { courseId },
+      where,
       order: { dueDate: 'ASC' },
     });
 

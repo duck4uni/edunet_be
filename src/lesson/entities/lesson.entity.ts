@@ -46,6 +46,9 @@ export class Lesson {
   @Column({ type: 'boolean', default: false })
   isFree: boolean;
 
+  @Column({ type: 'boolean', default: true })
+  isVisible: boolean;
+
   @Column({ type: 'uuid', name: 'courseId' })
   courseId: string;
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { LessonService } from './lesson.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';
@@ -37,8 +37,11 @@ export class LessonController {
   }
 
   @Get('course/:courseId')
-  findByCourse(@Param('courseId') courseId: string) {
-    return this.lessonService.findByCourse(courseId);
+  findByCourse(
+    @Param('courseId') courseId: string,
+    @Query('visibleOnly') visibleOnly?: string,
+  ) {
+    return this.lessonService.findByCourse(courseId, visibleOnly === 'true');
   }
 
   @Patch(':id')

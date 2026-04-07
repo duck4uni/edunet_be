@@ -36,6 +36,10 @@ export class CreateLessonDto {
   @IsBoolean()
   isFree?: boolean;
 
+  @IsOptional()
+  @IsBoolean()
+  isVisible?: boolean;
+
   @IsNotEmpty()
   @IsUUID()
   courseId: string;

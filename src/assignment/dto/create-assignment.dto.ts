@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsEnum, IsUUID, IsDateString, IsNumber, IsObject } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsEnum, IsUUID, IsDateString, IsNumber, IsObject, IsBoolean } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { AssignmentStatus } from '../entities/assignment.entity';
 
@@ -39,6 +39,10 @@ export class CreateAssignmentDto {
   @IsOptional()
   @IsString()
   submissionUrl?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isVisible?: boolean;
 
   @IsNotEmpty()
   @IsUUID()

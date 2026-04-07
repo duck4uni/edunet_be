@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsEnum, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsEnum, IsUUID, IsBoolean } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { MaterialType } from '../entities/material.entity';
 
@@ -23,6 +23,10 @@ export class CreateMaterialDto {
   @IsOptional()
   @IsString()
   size?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isVisible?: boolean;
 
   @IsNotEmpty()
   @IsUUID()
