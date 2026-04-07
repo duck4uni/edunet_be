@@ -4,7 +4,6 @@ export class AddEnrollmentPendingStatus1775520000000 implements MigrationInterfa
   public transaction = false;
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Add 'pending' and 'rejected' to the EnrollmentStatus enum
     await queryRunner.query(`
       DO $$ BEGIN
         ALTER TYPE "EnrollmentStatus" ADD VALUE 'pending';
