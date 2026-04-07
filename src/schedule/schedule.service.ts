@@ -407,12 +407,32 @@ export class ScheduleService {
   }
 
   /**
-   * Student's personal timetable — schedules of all actively enrolled courses,
-   * from today onwards.
+   * Personalized timetable.
+   * - Teacher: own teaching schedules from today onwards.
+   * - Student: schedules of actively enrolled courses from today onwards.
    */
-  async findMyTimetable(userId: string): Promise<CommonResponse<Schedule[]>> {
+  async findMyTimetable(currentUser: User): Promise<CommonResponse<Schedule[]>> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (currentUser.role === UserRole.TEACHER) {
+      const teacherSchedules = await this.scheduleRepository
+        .createQueryBuilder('s')
+        .leftJoinAndSelect('s.course', 'course')
+        .leftJoinAndSelect('s.teacher', 'teacher')
+        .where('s.teacherId = :teacherId', { teacherId: currentUser.id })
+        .andWhere('s.date >= :today', { today: today.toISOString().split('T')[0] })
+        .andWhere('s.status != :cancelled', { cancelled: ScheduleStatus.CANCELLED })
+        .andWhere('s.deletedAt IS NULL')
+        .orderBy('s.date', 'ASC')
+        .addOrderBy('s.startTime', 'ASC')
+        .getMany();
+
+      return new SuccessResponse(teacherSchedules);
+    }
+
     const enrollments = await this.enrollmentRepository.find({
-      where: { userId, status: EnrollmentStatus.ACTIVE },
+      where: { userId: currentUser.id, status: EnrollmentStatus.ACTIVE },
     });
 
     if (enrollments.length === 0) {
@@ -420,8 +440,6 @@ export class ScheduleService {
     }
 
     const courseIds = enrollments.map((e) => e.courseId);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
 
     const schedules = await this.scheduleRepository
       .createQueryBuilder('s')

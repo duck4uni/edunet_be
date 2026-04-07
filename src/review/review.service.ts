@@ -11,6 +11,7 @@ import { ErrorResponse, SuccessResponse } from 'src/core/responses/base.response
 import { CommonResponse, PaginationResponseInterface } from 'src/core/types/response';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
+import { User, UserRole } from 'src/user/entities/user.entity';
 
 @Injectable()
 export class ReviewService {
@@ -113,22 +114,26 @@ export class ReviewService {
     return new SuccessResponse(updatedReview);
   }
 
-  async remove(id: string, userId: string): Promise<CommonResponse> {
+  async remove(id: string, currentUser: User): Promise<CommonResponse> {
     const review = await this.reviewRepository.findOne({ where: { id } });
 
     if (!review) {
       return new ErrorResponse('Review not found', HttpStatus.NOT_FOUND);
     }
 
-    if (review.userId !== userId) {
-      return new ErrorResponse('You can only delete your own review', HttpStatus.FORBIDDEN);
+    if (currentUser.role !== UserRole.ADMIN && review.userId !== currentUser.id) {
+      return new ErrorResponse('Forbidden: you are not allowed to delete this review', HttpStatus.FORBIDDEN);
     }
 
     await this.reviewRepository.softDelete(id);
     return new SuccessResponse({ message: 'Review deleted successfully' });
   }
 
-  async toggleVisibility(id: string): Promise<CommonResponse<Review>> {
+  async toggleVisibility(id: string, currentUser: User): Promise<CommonResponse<Review>> {
+    if (currentUser.role !== UserRole.ADMIN) {
+      return new ErrorResponse('Only admin can moderate review visibility', HttpStatus.FORBIDDEN);
+    }
+
     const review = await this.reviewRepository.findOne({ where: { id } });
 
     if (!review) {

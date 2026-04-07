@@ -38,7 +38,7 @@ export class ScheduleController {
   @UseGuards(AuthGuard)
   @ApiBearerAuth('access-token')
   findMyTimetable(@CurrentUser() currentUser: User) {
-    return this.scheduleService.findMyTimetable(currentUser.id);
+    return this.scheduleService.findMyTimetable(currentUser);
   }
 
   /** Week view — group schedules by date for calendar UI */
