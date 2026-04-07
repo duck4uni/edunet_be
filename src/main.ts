@@ -31,36 +31,25 @@ async function bootstrap() {
       return normalized;
     }
   };
-  const allowedOrigins = (process.env.CORS_ORIGINS || process.env.FE_URL || 'http://localhost:5173')
-    .split(',')
-    .map((origin) => normalizeOrigin(origin))
-    .filter(Boolean);
-  const appOrigin = `http://${printableHost}:${port}`;
-  const allowedOriginsSet = new Set<string>([
-    ...allowedOrigins,
-    appOrigin,
-    `http://localhost:${port}`,
-    `http://127.0.0.1:${port}`,
-  ]);
-
   app.enableCors({
-    origin: (origin, callback) => {
-      // Allow non-browser clients (Postman, server-to-server) that do not send Origin.
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      if (allowedOriginsSet.has(normalizeOrigin(origin))) {
-        return callback(null, true);
-      }
-
-      return callback(new Error(`Origin ${origin} is not allowed by CORS`), false);
-    },
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     exposedHeaders: ['Content-Length', 'Content-Range'],
     maxAge: 3600,
+  });
+
+  // Support both direct routes (/api/...) and gateway-prefixed routes
+  // (/gateway/edunet/api/...) so Swagger "Try it out" works in local/dev.
+  app.use((req, _res, next) => {
+    const gatewayPrefix = '/gateway/edunet';
+
+    if (req.url.startsWith(gatewayPrefix)) {
+      req.url = req.url.slice(gatewayPrefix.length) || '/';
+    }
+
+    next();
   });
 
   // Serve uploaded files (CV PDFs etc.) as static assets
@@ -71,9 +60,7 @@ async function bootstrap() {
   });
 
   // Swagger configuration
-  const swaggerServerUrl = (process.env.SWAGGER_SERVER_URL || '/').trim();
-  const normalizedSwaggerServer =
-    swaggerServerUrl === '/' ? '/' : swaggerServerUrl.replace(/\/$/, '');
+  const normalizedSwaggerServer = '/gateway/edunet';
 
   const config = new DocumentBuilder()
     .setTitle('EduNet API')
