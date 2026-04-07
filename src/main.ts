@@ -40,6 +40,18 @@ async function bootstrap() {
     maxAge: 3600,
   });
 
+  // Support both direct routes (/api/...) and gateway-prefixed routes
+  // (/gateway/edunet/api/...) so Swagger "Try it out" works in local/dev.
+  app.use((req, _res, next) => {
+    const gatewayPrefix = '/gateway/edunet';
+
+    if (req.url.startsWith(gatewayPrefix)) {
+      req.url = req.url.slice(gatewayPrefix.length) || '/';
+    }
+
+    next();
+  });
+
   // Serve uploaded files (CV PDFs etc.) as static assets
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
 
@@ -48,9 +60,7 @@ async function bootstrap() {
   });
 
   // Swagger configuration
-  const swaggerServerUrl = (process.env.SWAGGER_SERVER_URL || '/').trim();
-  const normalizedSwaggerServer =
-    swaggerServerUrl === '/' ? '/' : swaggerServerUrl.replace(/\/$/, '');
+  const normalizedSwaggerServer = '/gateway/edunet';
 
   const config = new DocumentBuilder()
     .setTitle('EduNet API')
