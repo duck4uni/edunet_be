@@ -22,6 +22,7 @@ import { QuizModule } from './quiz/quiz.module';
 import { ReviewModule } from './review/review.module';
 import { ScheduleModule } from './schedule/schedule.module';
 import { SupportTicketModule } from './support-ticket/support-ticket.module';
+import { ChatbotModule } from './chatbot/chatbot.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { SupportTicketModule } from './support-ticket/support-ticket.module';
     ReviewModule,
     ScheduleModule,
     SupportTicketModule,
+    ChatbotModule,
   ],
   controllers: [AppController],
   providers: [AppService],
