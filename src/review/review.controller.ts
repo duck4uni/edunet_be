@@ -9,6 +9,7 @@ import { PaginationParams, Pagination } from 'src/core/decorators/pagination-par
 import { SortingParams, Sorting } from 'src/core/decorators/sorting-params.decorator';
 import { FilteringParams, Filtering } from 'src/core/decorators/filtering-params.decorator';
 import { IncludeRelations, Including } from 'src/core/decorators/including-params.decorator';
+import { User } from 'src/user/entities/user.entity';
 
 @ApiTags('Reviews')
 @Controller('reviews')
@@ -57,14 +58,14 @@ export class ReviewController {
   @Delete(':id')
   @UseGuards(AuthGuard)
   @ApiBearerAuth('access-token')
-  remove(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.reviewService.remove(id, user.id);
+  remove(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.reviewService.remove(id, user);
   }
 
   @Patch(':id/toggle-visibility')
   @UseGuards(AuthGuard)
   @ApiBearerAuth('access-token')
-  toggleVisibility(@Param('id') id: string) {
-    return this.reviewService.toggleVisibility(id);
+  toggleVisibility(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.reviewService.toggleVisibility(id, user);
   }
 }
