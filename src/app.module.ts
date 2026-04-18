@@ -23,6 +23,9 @@ import { ReviewModule } from './review/review.module';
 import { ScheduleModule } from './schedule/schedule.module';
 import { SupportTicketModule } from './support-ticket/support-ticket.module';
 import { ChatbotModule } from './chatbot/chatbot.module';
+import { FriendModule } from './friend/friend.module';
+import { ChatModule } from './chat/chat.module';
+import { PersonalAssistantModule } from './personal-assistant/personal-assistant.module';
 
 @Module({
   imports: [
@@ -50,6 +53,9 @@ import { ChatbotModule } from './chatbot/chatbot.module';
     ScheduleModule,
     SupportTicketModule,
     ChatbotModule,
+    FriendModule,
+    ChatModule,
+    PersonalAssistantModule,
   ],
   controllers: [AppController],
   providers: [AppService],
