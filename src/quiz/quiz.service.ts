@@ -1,6 +1,8 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { randomUUID } from 'crypto';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Quiz } from './entities/quiz.entity';
 import { QuizAttempt, AttemptStatus } from './entities/quiz-attempt.entity';
 import { Pagination } from 'src/core/decorators/pagination-params.decorator';
@@ -12,20 +14,286 @@ import { ErrorResponse, SuccessResponse } from 'src/core/responses/base.response
 import { CommonResponse, PaginationResponseInterface } from 'src/core/types/response';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
+import { GenerateAiQuizDto } from './dto/generate-ai-quiz.dto';
+
+interface QuizOptionPayload {
+  key: string;
+  label: string;
+}
+
+interface QuizQuestionPayload {
+  id: string;
+  text: string;
+  options: QuizOptionPayload[];
+  correctAnswer: string;
+}
 
 @Injectable()
 export class QuizService {
+  private geminiModel: any;
+
   constructor(
     @InjectRepository(Quiz)
     private readonly quizRepository: Repository<Quiz>,
     @InjectRepository(QuizAttempt)
     private readonly quizAttemptRepository: Repository<QuizAttempt>,
-  ) {}
+  ) {
+    this.initializeGemini();
+  }
+
+  private initializeGemini() {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return;
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    this.geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  }
+
+  private getOptionKey(index: number): string {
+    return String.fromCharCode(65 + index);
+  }
+
+  private resolveCorrectAnswer(
+    question: Record<string, unknown>,
+    options: QuizOptionPayload[],
+  ): string {
+    const rawCorrect = question.correctAnswer;
+
+    if (typeof rawCorrect === 'string') {
+      const trimmed = rawCorrect.trim();
+      const upper = trimmed.toUpperCase();
+
+      if (options.some((option) => option.key === upper)) {
+        return upper;
+      }
+
+      const parsedIndex = Number(trimmed);
+      if (!Number.isNaN(parsedIndex) && Number.isInteger(parsedIndex) && options[parsedIndex]) {
+        return options[parsedIndex].key;
+      }
+
+      const matchedByLabel = options.find(
+        (option) => option.label.toLowerCase() === trimmed.toLowerCase(),
+      );
+      if (matchedByLabel) {
+        return matchedByLabel.key;
+      }
+    }
+
+    const rawCorrectIndex = question.correctAnswerIndex;
+    if (
+      typeof rawCorrectIndex === 'number' &&
+      Number.isInteger(rawCorrectIndex) &&
+      options[rawCorrectIndex]
+    ) {
+      return options[rawCorrectIndex].key;
+    }
+
+    if (typeof rawCorrectIndex === 'string') {
+      const parsed = Number(rawCorrectIndex);
+      if (!Number.isNaN(parsed) && Number.isInteger(parsed) && options[parsed]) {
+        return options[parsed].key;
+      }
+    }
+
+    return options[0].key;
+  }
+
+  private normalizeQuestions(rawQuestions: unknown): QuizQuestionPayload[] {
+    if (!Array.isArray(rawQuestions)) {
+      return [];
+    }
+
+    return rawQuestions
+      .map((rawQuestion) => {
+        if (!rawQuestion || typeof rawQuestion !== 'object') {
+          return null;
+        }
+
+        const question = rawQuestion as Record<string, unknown>;
+        const rawText = question.text ?? question.questionText ?? question.question;
+        const text = typeof rawText === 'string' ? rawText.trim() : '';
+
+        if (!text) {
+          return null;
+        }
+
+        const rawOptions = question.options;
+        if (!Array.isArray(rawOptions)) {
+          return null;
+        }
+
+        const options = rawOptions
+          .map((rawOption, index) => {
+            if (typeof rawOption === 'string') {
+              const label = rawOption.trim();
+              if (!label) {
+                return null;
+              }
+              return { key: this.getOptionKey(index), label };
+            }
+
+            if (!rawOption || typeof rawOption !== 'object') {
+              return null;
+            }
+
+            const optionRecord = rawOption as Record<string, unknown>;
+            const rawLabel = optionRecord.label ?? optionRecord.text ?? optionRecord.value;
+            const label = typeof rawLabel === 'string' ? rawLabel.trim() : '';
+            if (!label) {
+              return null;
+            }
+
+            const rawKey =
+              typeof optionRecord.key === 'string' ? optionRecord.key.trim().toUpperCase() : '';
+
+            return {
+              key: rawKey || this.getOptionKey(index),
+              label,
+            };
+          })
+          .filter((option): option is QuizOptionPayload => Boolean(option))
+          .map((option, index) => ({
+            key: /^[A-Z]$/.test(option.key) ? option.key : this.getOptionKey(index),
+            label: option.label,
+          }));
+
+        if (options.length < 2) {
+          return null;
+        }
+
+        const id =
+          typeof question.id === 'string' && question.id.trim().length > 0
+            ? question.id.trim()
+            : randomUUID();
+
+        return {
+          id,
+          text,
+          options,
+          correctAnswer: this.resolveCorrectAnswer(question, options),
+        };
+      })
+      .filter((question): question is QuizQuestionPayload => Boolean(question));
+  }
+
+  private buildAiPrompt(generateAiQuizDto: GenerateAiQuizDto): string {
+    const questionCount = generateAiQuizDto.questionCount ?? 10;
+    const difficulty = generateAiQuizDto.difficulty ?? 'medium';
+    const language = (generateAiQuizDto.language || 'vi').trim();
+    const additionalInstructions = (generateAiQuizDto.additionalInstructions || '').trim();
+
+    return [
+      'You are an expert instructor who writes high-quality multiple-choice quizzes.',
+      `Language: ${language}`,
+      `Topic: ${generateAiQuizDto.topic}`,
+      `Difficulty: ${difficulty}`,
+      `Number of questions: ${questionCount}`,
+      'Requirements:',
+      '- Every question must have exactly 4 options with keys A, B, C, D.',
+      '- Exactly one correct answer per question.',
+      '- Keep wording clear and unambiguous.',
+      '- Avoid duplicate questions.',
+      '- Return ONLY a valid JSON array, no markdown, no explanation.',
+      'JSON shape:',
+      '[{"text":"Question text","options":[{"key":"A","label":"Option A"},{"key":"B","label":"Option B"},{"key":"C","label":"Option C"},{"key":"D","label":"Option D"}],"correctAnswer":"A"}]',
+      additionalInstructions ? `Additional instructions: ${additionalInstructions}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  private parseGeneratedQuestions(rawResponse: string): QuizQuestionPayload[] {
+    const text = rawResponse.trim();
+    if (!text) {
+      return [];
+    }
+
+    const candidates: string[] = [text];
+
+    const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (fencedMatch?.[1]) {
+      candidates.push(fencedMatch[1].trim());
+    }
+
+    const arrayMatch = text.match(/\[[\s\S]*\]/);
+    if (arrayMatch?.[0]) {
+      candidates.push(arrayMatch[0].trim());
+    }
+
+    for (const candidate of candidates) {
+      try {
+        const parsed = JSON.parse(candidate);
+        const normalized = this.normalizeQuestions(parsed);
+        if (normalized.length > 0) {
+          return normalized;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return [];
+  }
 
   async create(createQuizDto: CreateQuizDto): Promise<CommonResponse<Quiz>> {
-    const quiz = this.quizRepository.create(createQuizDto);
+    const payload: CreateQuizDto = { ...createQuizDto };
+
+    if (Object.prototype.hasOwnProperty.call(createQuizDto, 'questions')) {
+      const normalizedQuestions = this.normalizeQuestions(createQuizDto.questions);
+      payload.questions = normalizedQuestions;
+      payload.totalQuestions = normalizedQuestions.length;
+    }
+
+    const quiz = this.quizRepository.create(payload);
     const savedQuiz = await this.quizRepository.save(quiz);
     return new SuccessResponse(savedQuiz, HttpStatus.CREATED);
+  }
+
+  async generateWithAi(generateAiQuizDto: GenerateAiQuizDto): Promise<CommonResponse<Quiz>> {
+    if (!this.geminiModel) {
+      return new ErrorResponse('Gemini API not configured', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    try {
+      const prompt = this.buildAiPrompt(generateAiQuizDto);
+      const result = await this.geminiModel.generateContent(prompt);
+      const generatedText =
+        result && result.response && typeof result.response.text === 'function'
+          ? result.response.text()
+          : '';
+
+      const questions = this.parseGeneratedQuestions(generatedText);
+
+      if (questions.length === 0) {
+        return new ErrorResponse(
+          'Gemini did not return a valid quiz format',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const quiz = this.quizRepository.create({
+        title: generateAiQuizDto.title,
+        description: generateAiQuizDto.description,
+        duration: generateAiQuizDto.duration ?? 30,
+        questions,
+        totalQuestions: questions.length,
+        maxAttempts: generateAiQuizDto.maxAttempts ?? 1,
+        passingScore: generateAiQuizDto.passingScore ?? 70,
+        shuffleQuestions: generateAiQuizDto.shuffleQuestions ?? true,
+        showCorrectAnswers: generateAiQuizDto.showCorrectAnswers ?? true,
+        isVisible: generateAiQuizDto.isVisible ?? true,
+        courseId: generateAiQuizDto.courseId,
+      });
+
+      const savedQuiz = await this.quizRepository.save(quiz);
+      return new SuccessResponse(savedQuiz, HttpStatus.CREATED);
+    } catch (error) {
+      console.error('AI quiz generation failed:', error);
+      return new ErrorResponse('Failed to generate quiz with AI', HttpStatus.BAD_GATEWAY);
+    }
   }
 
   async findAll(
@@ -82,7 +350,15 @@ export class QuizService {
       return new ErrorResponse('Quiz not found', HttpStatus.NOT_FOUND);
     }
 
-    Object.assign(quiz, updateQuizDto);
+    const payload: UpdateQuizDto = { ...updateQuizDto };
+
+    if (Object.prototype.hasOwnProperty.call(updateQuizDto, 'questions')) {
+      const normalizedQuestions = this.normalizeQuestions(updateQuizDto.questions);
+      payload.questions = normalizedQuestions;
+      payload.totalQuestions = normalizedQuestions.length;
+    }
+
+    Object.assign(quiz, payload);
     const updatedQuiz = await this.quizRepository.save(quiz);
 
     return new SuccessResponse(updatedQuiz);
