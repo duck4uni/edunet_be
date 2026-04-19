@@ -6,10 +6,35 @@ import { ChatData } from './entities/chat-data.entity';
 import { CreateChatDataDto } from './dto/create-chat-data.dto';
 import { UpdateChatDataDto } from './dto/update-chat-data.dto';
 import { AskChatbotDto } from './dto/ask-chatbot.dto';
+import {
+  GenerateCourseContentDto,
+  GenerateContentType,
+} from './dto/generate-course-content.dto';
 import { SuccessResponse, ErrorResponse } from 'src/core/responses/base.responses';
 import { CommonResponse, PaginationResponseInterface } from 'src/core/types/response';
 import { Pagination, Sorting, Filtering, Including } from 'src/core/decorators';
 import { getWhere, getOrder, getRelations } from 'src/core/helpers';
+
+type GeneratedMaterialSuggestion = {
+  title: string;
+  description: string;
+  type: 'pdf' | 'video' | 'document' | 'link' | 'image';
+  size: string;
+  downloadUrl: string;
+  isVisible: boolean;
+};
+
+type GeneratedAssignmentSuggestion = {
+  title: string;
+  description: string;
+  dueDate: string;
+  maxGrade: number;
+  isVisible: boolean;
+};
+
+type GeneratedCourseContentSuggestion =
+  | GeneratedMaterialSuggestion
+  | GeneratedAssignmentSuggestion;
 
 @Injectable()
 export class ChatbotService {
@@ -27,6 +52,120 @@ export class ChatbotService {
       return error.message;
     }
     return typeof error === 'string' ? error : 'An unknown error occurred';
+  }
+
+  private parseJsonObject(rawText: string): Record<string, unknown> | null {
+    const trimmed = rawText.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Continue with best-effort extraction from markdown/code block output.
+    }
+
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+    if (start < 0 || end < 0 || end <= start) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed.slice(start, end + 1));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return null;
+    }
+
+    return null;
+  }
+
+  private isValidHttpUrl(value: unknown): value is string {
+    if (typeof value !== 'string' || !value.trim()) {
+      return false;
+    }
+
+    try {
+      const url = new URL(value);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+
+  private normalizeMaterialSuggestion(
+    payload: Record<string, unknown> | null,
+    courseTitle: string,
+  ): GeneratedMaterialSuggestion {
+    const allowedTypes = ['pdf', 'video', 'document', 'link', 'image'];
+    const typeRaw =
+      typeof payload?.type === 'string' ? payload.type.toLowerCase().trim() : '';
+
+    return {
+      title:
+        typeof payload?.title === 'string' && payload.title.trim().length > 0
+          ? payload.title.trim()
+          : `Tài liệu tổng quan - ${courseTitle}`,
+      description:
+        typeof payload?.description === 'string' &&
+        payload.description.trim().length > 0
+          ? payload.description.trim()
+          : `Tài liệu tham khảo dành cho khóa học ${courseTitle}.`,
+      type: allowedTypes.includes(typeRaw)
+        ? (typeRaw as GeneratedMaterialSuggestion['type'])
+        : 'document',
+      size:
+        typeof payload?.size === 'string' && payload.size.trim().length > 0
+          ? payload.size.trim()
+          : '1.2MB',
+      downloadUrl: this.isValidHttpUrl(payload?.downloadUrl)
+        ? payload.downloadUrl
+        : 'https://example.com/tai-lieu-khoa-hoc',
+      isVisible: typeof payload?.isVisible === 'boolean' ? payload.isVisible : true,
+    };
+  }
+
+  private normalizeAssignmentSuggestion(
+    payload: Record<string, unknown> | null,
+    courseTitle: string,
+  ): GeneratedAssignmentSuggestion {
+    const dueDateCandidate =
+      typeof payload?.dueDate === 'string' ? payload.dueDate : '';
+    const parsedDueDate = new Date(dueDateCandidate);
+
+    const dueDate = Number.isNaN(parsedDueDate.getTime())
+      ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      : parsedDueDate.toISOString();
+
+    const maxGradeRaw =
+      typeof payload?.maxGrade === 'number'
+        ? payload.maxGrade
+        : Number(payload?.maxGrade);
+
+    return {
+      title:
+        typeof payload?.title === 'string' && payload.title.trim().length > 0
+          ? payload.title.trim()
+          : `Bài tập ứng dụng - ${courseTitle}`,
+      description:
+        typeof payload?.description === 'string' &&
+        payload.description.trim().length > 0
+          ? payload.description.trim()
+          : `Thực hành kiến thức trọng tâm trong khóa học ${courseTitle}.`,
+      dueDate,
+      maxGrade:
+        Number.isFinite(maxGradeRaw) && maxGradeRaw > 0
+          ? Math.round(maxGradeRaw)
+          : 100,
+      isVisible: typeof payload?.isVisible === 'boolean' ? payload.isVisible : true,
+    };
   }
 
   private initializeGemini() {
@@ -246,6 +385,82 @@ export class ChatbotService {
       console.error('Chatbot ask error:', error);
       return new ErrorResponse(
         this.getErrorMessage(error) || 'Lỗi xử lý câu hỏi. Vui lòng thử lại.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async generateCourseContent(
+    generateDto: GenerateCourseContentDto,
+  ): Promise<CommonResponse<{ suggestion: GeneratedCourseContentSuggestion }>> {
+    try {
+      if (!this.geminiModel) {
+        return new ErrorResponse(
+          'Gemini API not configured',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
+
+      const { contentType, courseTitle, courseDescription, requirement } = generateDto;
+      const safeCourseTitle = courseTitle.trim();
+      const safeCourseDescription = courseDescription?.trim() || 'Không có mô tả';
+      const safeRequirement = requirement?.trim() || 'Không có yêu cầu bổ sung';
+
+      const outputSchema =
+        contentType === GenerateContentType.MATERIAL
+          ? [
+              '{',
+              '  "title": "string",',
+              '  "description": "string",',
+              '  "type": "pdf | video | document | link | image",',
+              '  "size": "string",',
+              '  "downloadUrl": "https://...",',
+              '  "isVisible": true',
+              '}',
+            ].join('\n')
+          : [
+              '{',
+              '  "title": "string",',
+              '  "description": "string",',
+              '  "dueDate": "ISO datetime",',
+              '  "maxGrade": 100,',
+              '  "isVisible": true',
+              '}',
+            ].join('\n');
+
+      const prompt = [
+        'Bạn là trợ lý AI tạo dữ liệu mẫu cho hệ thống quản lý khóa học EduNet.',
+        'Hãy trả về CHÍNH XÁC một JSON object hợp lệ, không thêm markdown/code fence, không giải thích.',
+        'Nội dung phải rõ ràng, ngắn gọn, tiếng Việt, phù hợp với giáo dục trực tuyến.',
+        '',
+        `Loại nội dung: ${contentType}`,
+        `Tên khóa học: ${safeCourseTitle}`,
+        `Mô tả khóa học: ${safeCourseDescription}`,
+        `Yêu cầu thêm từ giảng viên: ${safeRequirement}`,
+        '',
+        'Schema JSON bắt buộc:',
+        outputSchema,
+      ].join('\n');
+
+      const result = await this.geminiModel.generateContent(prompt);
+      const rawText =
+        result && result.response && typeof result.response.text === 'function'
+          ? result.response.text()
+          : '';
+
+      const parsedPayload = this.parseJsonObject(rawText);
+
+      const suggestion =
+        contentType === GenerateContentType.MATERIAL
+          ? this.normalizeMaterialSuggestion(parsedPayload, safeCourseTitle)
+          : this.normalizeAssignmentSuggestion(parsedPayload, safeCourseTitle);
+
+      return new SuccessResponse({ suggestion });
+    } catch (error) {
+      console.error('Chatbot generateCourseContent error:', error);
+      return new ErrorResponse(
+        this.getErrorMessage(error) ||
+          'Không thể sinh nội dung khóa học bằng AI. Vui lòng thử lại.',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
