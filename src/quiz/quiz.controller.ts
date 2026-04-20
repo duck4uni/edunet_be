@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { QuizService } from './quiz.service';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
+import { GenerateAiQuizDto } from './dto/generate-ai-quiz.dto';
 import { AuthGuard } from 'src/core/guards/auth.guard';
 import { CurrentUser } from 'src/core/decorators/current-user.decorator';
 import { PaginationParams, Pagination } from 'src/core/decorators/pagination-params.decorator';
@@ -20,6 +21,13 @@ export class QuizController {
   @ApiBearerAuth('access-token')
   create(@Body() createQuizDto: CreateQuizDto) {
     return this.quizService.create(createQuizDto);
+  }
+
+  @Post('generate/ai')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
+  generateAiQuiz(@Body() generateAiQuizDto: GenerateAiQuizDto) {
+    return this.quizService.generateWithAi(generateAiQuizDto);
   }
 
   @Get()

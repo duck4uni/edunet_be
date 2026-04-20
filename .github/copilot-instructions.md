@@ -122,6 +122,7 @@ Clients use these query params (handled by custom decorators):
 - **Migrations:** `src/migrations/` — run via `npm run migration:migrate`, revert via `npm run migration:revert`. Both schema changes AND seed data live here (seed file: `1704000000000-SeedCourseData.ts`).
 - **Seeds (legacy):** `src/seeds/` still exists for backward compat with `npm run seed:migrate`, but prefer placing new seed migrations in `src/migrations/`.
 - **Generate migration:** `npm run migration:generate:name` (runs `scripts/migration-gen.ts`)
+- **Migration authoring policy:** Create migration files via CLI commands only (project scripts or TypeORM CLI). Do not hand-write or manually create migration files.
 - **Current migrations:** `InitialSchema` → `SyncEntitiesWithSchema` → `AddLastLoginToUsers` → `SeedCourseData` (all applied)
 - `synchronize: false` — always use migrations, never auto-sync
 

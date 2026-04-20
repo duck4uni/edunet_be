@@ -14,6 +14,7 @@ import { ChatbotService } from './chatbot.service';
 import { CreateChatDataDto } from './dto/create-chat-data.dto';
 import { UpdateChatDataDto } from './dto/update-chat-data.dto';
 import { AskChatbotDto } from './dto/ask-chatbot.dto';
+import { GenerateCourseContentDto } from './dto/generate-course-content.dto';
 import {
   PaginationParams,
   SortingParams,
@@ -51,6 +52,15 @@ export class ChatbotController {
   @Post('ask')
   ask(@Body() askDto: AskChatbotDto) {
     return this.chatbotService.ask(askDto);
+  }
+
+  /**
+   * POST /api/chatbot/generate-content
+   * Sinh dữ liệu nội dung khóa học bằng Gemini (material/assignment)
+   */
+  @Post('generate-content')
+  generateContent(@Body() generateDto: GenerateCourseContentDto) {
+    return this.chatbotService.generateCourseContent(generateDto);
   }
 
   /**
