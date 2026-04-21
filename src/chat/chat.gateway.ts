@@ -18,6 +18,16 @@ interface AuthenticatedSocket extends Socket {
   userId?: string;
 }
 
+interface PersistedMessagePayload {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  content: string;
+  type: string;
+  createdAt: Date;
+  isRead: boolean;
+}
+
 @WebSocketGateway({
   cors: {
     origin: true,
@@ -183,5 +193,20 @@ export class ChatGateway
 
   notifyFriendAccepted(requesterId: string, data: any) {
     this.server.to(`user:${requesterId}`).emit('friend:accepted', data);
+  }
+
+  emitPersistedMessage(message: PersistedMessagePayload) {
+    const payload = {
+      id: message.id,
+      senderId: message.senderId,
+      receiverId: message.receiverId,
+      content: message.content,
+      type: message.type,
+      createdAt: message.createdAt,
+      isRead: message.isRead,
+    };
+
+    this.server.to(`user:${message.receiverId}`).emit('message:receive', payload);
+    this.server.to(`user:${message.senderId}`).emit('message:sent', payload);
   }
 }
