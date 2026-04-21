@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -10,11 +11,50 @@ import {
 } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { ExpressRequest } from '../core/types/express-request.interface';
-import { ErrorResponse } from '../core/responses/base.responses';
+import { ErrorResponse, SuccessResponse } from '../core/responses/base.responses';
+import { SendMessageDto } from './dto/send-message.dto';
+import { ChatGateway } from './chat.gateway';
 
 @Controller('chat')
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly chatGateway: ChatGateway,
+  ) {}
+
+  @Post('messages')
+  async sendMessage(@Body() body: SendMessageDto, @Req() req: ExpressRequest) {
+    if (!req.user) {
+      return new ErrorResponse('Chưa đăng nhập', HttpStatus.UNAUTHORIZED);
+    }
+
+    const message = await this.chatService.saveMessage(
+      req.user.id,
+      body.receiverId,
+      body.content,
+      body.type || 'text',
+    );
+
+    this.chatGateway.emitPersistedMessage({
+      id: message.id,
+      senderId: message.senderId,
+      receiverId: message.receiverId,
+      content: message.content,
+      type: message.type,
+      createdAt: message.createdAt,
+      isRead: message.isRead,
+    });
+
+    return new SuccessResponse({
+      id: message.id,
+      senderId: message.senderId,
+      receiverId: message.receiverId,
+      content: message.content,
+      type: message.type,
+      createdAt: message.createdAt,
+      isRead: message.isRead,
+    });
+  }
 
   @Get('messages/:friendId')
   async getMessages(
