@@ -1,5 +1,6 @@
 import { IsNotEmpty, IsOptional, IsString, IsEnum, IsObject } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { TicketPriority, TicketCategory } from '../entities/support-ticket.entity';
 
 export class CreateSupportTicketDto {
@@ -9,6 +10,7 @@ export class CreateSupportTicketDto {
 
   @IsNotEmpty()
   @IsString()
+  @Transform(({ value, obj }) => value ?? obj.description)
   message: string;
 
   @IsOptional()

@@ -35,8 +35,125 @@ interface IntentResult {
   params: Record<string, string>;
 }
 
+export type ManagedIntent = Exclude<Intent, 'unknown'>;
+
+export interface AssistantIntentConfig {
+  intent: ManagedIntent;
+  label: string;
+  description: string;
+  examples: string[];
+  enabled: boolean;
+}
+
+export interface AssistantQuickAction {
+  id: string;
+  label: string;
+  question: string;
+  icon: string;
+  enabled: boolean;
+  order: number;
+}
+
 @Injectable()
 export class PersonalAssistantService {
+  private readonly intentConfigs: Record<ManagedIntent, Omit<AssistantIntentConfig, 'intent'>> = {
+    my_courses: {
+      label: 'Khóa học của tôi',
+      description: 'Xem danh sách khóa học đã đăng ký và trạng thái học tập.',
+      examples: ['Khóa học của tôi', 'Tôi đang học gì'],
+      enabled: true,
+    },
+    my_assignments: {
+      label: 'Bài tập',
+      description: 'Xem bài tập theo trạng thái: chưa nộp, quá hạn, đã nộp, đã chấm.',
+      examples: ['Bài tập của tôi', 'Tôi còn bài tập nào chưa nộp'],
+      enabled: true,
+    },
+    my_schedule: {
+      label: 'Lịch học',
+      description: 'Hiển thị thời khóa biểu và lịch học sắp tới.',
+      examples: ['Lịch học tuần này', 'Thời khóa biểu'],
+      enabled: true,
+    },
+    my_progress: {
+      label: 'Tiến độ học tập',
+      description: 'Theo dõi phần trăm hoàn thành từng khóa học.',
+      examples: ['Tiến độ học tập', 'Tôi học đến đâu rồi'],
+      enabled: true,
+    },
+    my_quizzes: {
+      label: 'Bài kiểm tra',
+      description: 'Xem bài quiz và kết quả làm bài của học viên.',
+      examples: ['Bài kiểm tra của tôi', 'Quiz của tôi'],
+      enabled: true,
+    },
+    my_materials: {
+      label: 'Tài liệu học tập',
+      description: 'Liệt kê tài liệu thuộc các khóa học đang tham gia.',
+      examples: ['Tài liệu của tôi', 'Giáo trình khóa học'],
+      enabled: true,
+    },
+    search_courses: {
+      label: 'Tìm kiếm khóa học',
+      description: 'Tìm khóa học theo tên hoặc từ khóa.',
+      examples: ['Tìm khóa học React', 'Khóa học về Python'],
+      enabled: true,
+    },
+    course_detail: {
+      label: 'Chi tiết khóa học',
+      description: 'Xem mô tả, số bài học, giảng viên và thông tin khóa học.',
+      examples: ['Chi tiết khóa học React', 'Thông tin khóa học UIUX'],
+      enabled: true,
+    },
+    categories: {
+      label: 'Danh mục khóa học',
+      description: 'Liệt kê danh mục và số lượng khóa học theo từng danh mục.',
+      examples: ['Danh mục khóa học', 'Có những lĩnh vực nào'],
+      enabled: true,
+    },
+    upcoming_deadlines: {
+      label: 'Deadline sắp tới',
+      description: 'Hiển thị các hạn nộp bài gần nhất của học viên.',
+      examples: ['Deadline sắp tới', 'Hạn nộp bài gần nhất'],
+      enabled: true,
+    },
+    my_grades: {
+      label: 'Điểm số',
+      description: 'Xem bảng điểm bài tập và bài kiểm tra.',
+      examples: ['Điểm của tôi', 'Bảng điểm'],
+      enabled: true,
+    },
+    course_recommendations: {
+      label: 'Gợi ý khóa học',
+      description: 'Đề xuất khóa học dựa trên lịch sử học tập.',
+      examples: ['Gợi ý khóa học cho tôi', 'Nên học gì tiếp'],
+      enabled: true,
+    },
+    my_profile: {
+      label: 'Hồ sơ cá nhân',
+      description: 'Xem nhanh thông tin cá nhân và thống kê học tập.',
+      examples: ['Thông tin của tôi', 'Hồ sơ của tôi'],
+      enabled: true,
+    },
+    help: {
+      label: 'Trợ giúp',
+      description: 'Hiển thị danh sách câu lệnh trợ lý hỗ trợ.',
+      examples: ['Giúp', 'Hướng dẫn sử dụng'],
+      enabled: true,
+    },
+  };
+
+  private quickActions: AssistantQuickAction[] = [
+    { id: 'qa-my-courses', label: 'Khóa học của tôi', question: 'Khóa học của tôi', icon: 'BookOutlined', enabled: true, order: 1 },
+    { id: 'qa-assignments', label: 'Bài tập', question: 'Bài tập của tôi', icon: 'FileTextOutlined', enabled: true, order: 2 },
+    { id: 'qa-schedule', label: 'Lịch học', question: 'Lịch học của tôi', icon: 'CalendarOutlined', enabled: true, order: 3 },
+    { id: 'qa-deadline', label: 'Deadline', question: 'Deadline sắp tới', icon: 'CalendarOutlined', enabled: true, order: 4 },
+    { id: 'qa-grades', label: 'Điểm số', question: 'Điểm của tôi', icon: 'TrophyOutlined', enabled: true, order: 5 },
+    { id: 'qa-progress', label: 'Tiến độ', question: 'Tiến độ học tập', icon: 'TrophyOutlined', enabled: true, order: 6 },
+    { id: 'qa-search', label: 'Tìm khóa học', question: 'Tìm khóa học', icon: 'SearchOutlined', enabled: true, order: 7 },
+    { id: 'qa-recommend', label: 'Gợi ý', question: 'Gợi ý khóa học cho tôi', icon: 'QuestionCircleOutlined', enabled: true, order: 8 },
+  ];
+
   constructor(
     @InjectRepository(Enrollment) private enrollmentRepo: Repository<Enrollment>,
     @InjectRepository(Assignment) private assignmentRepo: Repository<Assignment>,
@@ -52,6 +169,17 @@ export class PersonalAssistantService {
 
   async handleQuestion(userId: string, question: string) {
     const { intent, params } = this.detectIntent(question);
+
+    if (intent !== 'unknown') {
+      const config = this.intentConfigs[intent as ManagedIntent];
+      if (config && !config.enabled) {
+        return new SuccessResponse({
+          intent,
+          answer: `Chức năng "${config.label}" hiện đang tạm tắt bởi quản trị viên.`,
+          data: null,
+        });
+      }
+    }
 
     let answer: string;
     let data: any = null;
@@ -105,6 +233,88 @@ export class PersonalAssistantService {
     }
 
     return new SuccessResponse({ intent, answer, data });
+  }
+
+  getPublicQuickActions() {
+    const actions = this.quickActions
+      .filter((item) => item.enabled)
+      .sort((a, b) => a.order - b.order);
+    return new SuccessResponse(actions);
+  }
+
+  getAdminIntentConfigs() {
+    const rows = (Object.keys(this.intentConfigs) as ManagedIntent[]).map((intent) => ({
+      intent,
+      ...this.intentConfigs[intent],
+    }));
+
+    return new SuccessResponse(rows);
+  }
+
+  updateAdminIntentConfig(
+    intent: ManagedIntent,
+    payload: Partial<Pick<AssistantIntentConfig, 'enabled' | 'description' | 'examples'>>,
+  ) {
+    const row = this.intentConfigs[intent];
+    if (!row) {
+      return new SuccessResponse(null);
+    }
+
+    if (payload.enabled !== undefined) {
+      row.enabled = payload.enabled;
+    }
+    if (payload.description !== undefined) {
+      row.description = payload.description;
+    }
+    if (payload.examples !== undefined) {
+      row.examples = payload.examples;
+    }
+
+    return new SuccessResponse({ intent, ...row });
+  }
+
+  getAdminQuickActions() {
+    const rows = [...this.quickActions].sort((a, b) => a.order - b.order);
+    return new SuccessResponse(rows);
+  }
+
+  createAdminQuickAction(
+    payload: Pick<AssistantQuickAction, 'label' | 'question' | 'icon'> &
+      Partial<Pick<AssistantQuickAction, 'enabled' | 'order'>>,
+  ) {
+    const created: AssistantQuickAction = {
+      id: `qa-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      label: payload.label,
+      question: payload.question,
+      icon: payload.icon,
+      enabled: payload.enabled ?? true,
+      order: payload.order ?? this.quickActions.length + 1,
+    };
+    this.quickActions.push(created);
+    return new SuccessResponse(created);
+  }
+
+  updateAdminQuickAction(
+    id: string,
+    payload: Partial<Pick<AssistantQuickAction, 'label' | 'question' | 'icon' | 'enabled' | 'order'>>,
+  ) {
+    const index = this.quickActions.findIndex((item) => item.id === id);
+    if (index < 0) {
+      return new SuccessResponse(null);
+    }
+
+    this.quickActions[index] = {
+      ...this.quickActions[index],
+      ...payload,
+    };
+
+    return new SuccessResponse(this.quickActions[index]);
+  }
+
+  deleteAdminQuickAction(id: string) {
+    const before = this.quickActions.length;
+    this.quickActions = this.quickActions.filter((item) => item.id !== id);
+    return new SuccessResponse({ deleted: before !== this.quickActions.length });
   }
 
   // ──────────────────── Intent detection ────────────────────
