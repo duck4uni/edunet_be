@@ -26,6 +26,7 @@ import { ChatbotModule } from './chatbot/chatbot.module';
 import { FriendModule } from './friend/friend.module';
 import { ChatModule } from './chat/chat.module';
 import { PersonalAssistantModule } from './personal-assistant/personal-assistant.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { PersonalAssistantModule } from './personal-assistant/personal-assistant
     FriendModule,
     ChatModule,
     PersonalAssistantModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
