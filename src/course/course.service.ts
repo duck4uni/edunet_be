@@ -24,13 +24,21 @@ export class CourseService {
   async create(createCourseDto: CreateCourseDto, currentUser: User): Promise<CommonResponse<Course>> {
     const isAdmin = currentUser.role === UserRole.ADMIN;
 
+    if (isAdmin && !createCourseDto.teacherId) {
+      return new ErrorResponse(
+        'Admin must assign a teacher for this course',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
     const course = this.courseRepository.create({
       ...createCourseDto,
       // Admin can assign to a specific teacher; teachers always own the course themselves
       teacherId: isAdmin ? (createCourseDto.teacherId ?? currentUser.id) : currentUser.id,
-      // Admin-created courses are published immediately, no approval needed
-      status: isAdmin ? CourseStatus.PUBLISHED : CourseStatus.PENDING,
-      publishedAt: isAdmin ? new Date() : undefined,
+      // Every course starts as draft, then goes through review before teacher publish.
+      status: CourseStatus.DRAFT,
+      publishedAt: null,
+      rejectionReason: null,
     });
 
     const savedCourse = await this.courseRepository.save(course);
@@ -66,7 +74,11 @@ export class CourseService {
     return new SuccessResponse({ rows, count });
   }
 
-  async findOne(id: string, includes?: Including | null): Promise<CommonResponse<Course>> {
+  async findOne(
+    id: string,
+    includes?: Including | null,
+    currentUser?: User | null,
+  ): Promise<CommonResponse<Course>> {
     const relations = includes ? getRelations(includes) : ['category', 'teacher', 'lessons', 'reviews'];
 
     const course = await this.courseRepository.findOne({
@@ -76,6 +88,15 @@ export class CourseService {
 
     if (!course) {
       return new ErrorResponse('Course not found', HttpStatus.NOT_FOUND);
+    }
+
+    const isAdmin = currentUser?.role === UserRole.ADMIN;
+    const isOwnerTeacher =
+      currentUser?.role === UserRole.TEACHER &&
+      currentUser.id === course.teacherId;
+
+    if (course.status !== CourseStatus.PUBLISHED && !isAdmin && !isOwnerTeacher) {
+      return new ErrorResponse('Course is not available', HttpStatus.NOT_FOUND);
     }
 
     return new SuccessResponse(course);
@@ -151,18 +172,29 @@ export class CourseService {
     course.rejectionReason = dto.status === CourseStatus.REJECTED ? (dto.rejectionReason ?? null) : null;
 
     if (dto.status === CourseStatus.APPROVED) {
-      course.publishedAt = new Date();
+      course.publishedAt = null;
     }
 
     const saved = await this.courseRepository.save(course);
     return new SuccessResponse(saved);
   }
 
-  async publish(id: string): Promise<CommonResponse<Course>> {
+  async publish(id: string, currentUser: User): Promise<CommonResponse<Course>> {
     const course = await this.courseRepository.findOne({ where: { id } });
 
     if (!course) {
       return new ErrorResponse('Course not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (currentUser.role !== UserRole.TEACHER) {
+      return new ErrorResponse(
+        'Only teachers can publish courses',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    if (course.teacherId !== currentUser.id) {
+      return new ErrorResponse('Forbidden: you do not own this course', HttpStatus.FORBIDDEN);
     }
 
     if (course.status !== CourseStatus.APPROVED) {
@@ -173,6 +205,7 @@ export class CourseService {
     }
 
     course.status = CourseStatus.PUBLISHED;
+    course.publishedAt = new Date();
     const saved = await this.courseRepository.save(course);
     return new SuccessResponse(saved);
   }
