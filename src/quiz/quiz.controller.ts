@@ -101,6 +101,13 @@ export class QuizController {
     return this.quizService.getStudentAttempts(quizId, user.id);
   }
 
+  @Get(':id/attempts/teacher')
+  @UseGuards(AuthGuard)
+  @ApiBearerAuth('access-token')
+  getAttemptsForTeacher(@Param('id') quizId: string, @CurrentUser() user: any) {
+    return this.quizService.getAttemptsForTeacher(quizId, user);
+  }
+
   @Get(':id/best-score')
   @UseGuards(AuthGuard)
   @ApiBearerAuth('access-token')

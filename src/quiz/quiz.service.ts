@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Quiz } from './entities/quiz.entity';
 import { QuizAttempt, AttemptStatus } from './entities/quiz-attempt.entity';
+import { Course } from 'src/course/entities/course.entity';
 import { Pagination } from 'src/core/decorators/pagination-params.decorator';
 import { Sorting } from 'src/core/decorators/sorting-params.decorator';
 import { Filtering } from 'src/core/decorators/filtering-params.decorator';
@@ -15,6 +16,7 @@ import { CommonResponse, PaginationResponseInterface } from 'src/core/types/resp
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { GenerateAiQuizDto } from './dto/generate-ai-quiz.dto';
+import { User, UserRole } from 'src/user/entities/user.entity';
 
 interface QuizOptionPayload {
   key: string;
@@ -28,6 +30,44 @@ interface QuizQuestionPayload {
   correctAnswer: string;
 }
 
+export interface TeacherQuizAttemptItem {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  studentAvatar: string | null;
+  status: AttemptStatus;
+  score: number;
+  correctAnswers: number;
+  totalAnswered: number;
+  startedAt: Date;
+  completedAt: Date | null;
+  timeSpent: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface TeacherQuizAttemptsResponse {
+  quiz: {
+    id: string;
+    title: string;
+    totalQuestions: number;
+    maxAttempts: number;
+    passingScore: number;
+  };
+  summary: {
+    totalAttempts: number;
+    completedAttempts: number;
+    inProgressAttempts: number;
+    timedOutAttempts: number;
+    totalStudents: number;
+    averageScore: number;
+    highestScore: number;
+    passRate: number;
+  };
+  attempts: TeacherQuizAttemptItem[];
+}
+
 @Injectable()
 export class QuizService {
   private geminiModel: any;
@@ -37,6 +77,8 @@ export class QuizService {
     private readonly quizRepository: Repository<Quiz>,
     @InjectRepository(QuizAttempt)
     private readonly quizAttemptRepository: Repository<QuizAttempt>,
+    @InjectRepository(Course)
+    private readonly courseRepository: Repository<Course>,
   ) {
     this.initializeGemini();
   }
@@ -447,6 +489,128 @@ export class QuizService {
     });
 
     return new SuccessResponse(attempts);
+  }
+
+  async getAttemptsForTeacher(
+    quizId: string,
+    currentUser: User,
+  ): Promise<CommonResponse<TeacherQuizAttemptsResponse>> {
+    const quiz = await this.quizRepository.findOne({
+      where: { id: quizId },
+      relations: ['course'],
+    });
+
+    if (!quiz) {
+      return new ErrorResponse('Quiz not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (currentUser.role === UserRole.STUDENT) {
+      return new ErrorResponse('Forbidden', HttpStatus.FORBIDDEN);
+    }
+
+    if (currentUser.role === UserRole.TEACHER) {
+      const course = quiz.course
+        ? quiz.course
+        : await this.courseRepository.findOne({ where: { id: quiz.courseId } });
+
+      if (!course || course.teacherId !== currentUser.id) {
+        return new ErrorResponse('Forbidden: you do not own this quiz', HttpStatus.FORBIDDEN);
+      }
+    }
+
+    const attempts = await this.quizAttemptRepository
+      .createQueryBuilder('attempt')
+      .leftJoin('attempt.student', 'student')
+      .where('attempt.quizId = :quizId', { quizId })
+      .select([
+        'attempt.id',
+        'attempt.quizId',
+        'attempt.studentId',
+        'attempt.status',
+        'attempt.score',
+        'attempt.correctAnswers',
+        'attempt.totalAnswered',
+        'attempt.startedAt',
+        'attempt.completedAt',
+        'attempt.timeSpent',
+        'attempt.createdAt',
+        'attempt.updatedAt',
+        'student.id',
+        'student.firstName',
+        'student.lastName',
+        'student.email',
+        'student.avatar',
+      ])
+      .orderBy('attempt.createdAt', 'DESC')
+      .getMany();
+
+    const mappedAttempts: TeacherQuizAttemptItem[] = attempts.map((attempt) => {
+      const firstName = attempt.student?.firstName?.trim() || '';
+      const lastName = attempt.student?.lastName?.trim() || '';
+      const fullName = `${firstName} ${lastName}`.trim();
+
+      return {
+        id: attempt.id,
+        studentId: attempt.studentId,
+        studentName: fullName || attempt.student?.email || 'Unknown student',
+        studentEmail: attempt.student?.email || '',
+        studentAvatar: attempt.student?.avatar || null,
+        status: attempt.status,
+        score: Number(attempt.score || 0),
+        correctAnswers: attempt.correctAnswers || 0,
+        totalAnswered: attempt.totalAnswered || 0,
+        startedAt: attempt.startedAt,
+        completedAt: attempt.completedAt || null,
+        timeSpent: attempt.timeSpent || 0,
+        createdAt: attempt.createdAt,
+        updatedAt: attempt.updatedAt,
+      };
+    });
+
+    const completedAttempts = mappedAttempts.filter(
+      (attempt) => attempt.status === AttemptStatus.COMPLETED,
+    );
+    const totalScore = completedAttempts.reduce((sum, attempt) => sum + attempt.score, 0);
+    const averageScore =
+      completedAttempts.length > 0
+        ? Number((totalScore / completedAttempts.length).toFixed(2))
+        : 0;
+    const highestScore =
+      completedAttempts.length > 0
+        ? Math.max(...completedAttempts.map((attempt) => attempt.score))
+        : 0;
+    const passedAttempts = completedAttempts.filter(
+      (attempt) => attempt.score >= Number(quiz.passingScore || 0),
+    ).length;
+    const passRate =
+      completedAttempts.length > 0
+        ? Number(((passedAttempts / completedAttempts.length) * 100).toFixed(2))
+        : 0;
+
+    return new SuccessResponse({
+      quiz: {
+        id: quiz.id,
+        title: quiz.title,
+        totalQuestions: quiz.totalQuestions || 0,
+        maxAttempts: quiz.maxAttempts || 0,
+        passingScore: Number(quiz.passingScore || 0),
+      },
+      summary: {
+        totalAttempts: mappedAttempts.length,
+        completedAttempts: completedAttempts.length,
+        inProgressAttempts: mappedAttempts.filter(
+          (attempt) => attempt.status === AttemptStatus.IN_PROGRESS,
+        ).length,
+        timedOutAttempts: mappedAttempts.filter(
+          (attempt) => attempt.status === AttemptStatus.TIMED_OUT,
+        ).length,
+        totalStudents: new Set(mappedAttempts.map((attempt) => attempt.studentId)).size,
+        averageScore,
+        highestScore,
+        passRate,
+      },
+      attempts: mappedAttempts,
+    });
   }
 
   async getBestScore(quizId: string, studentId: string): Promise<CommonResponse<{ bestScore: number }>> {
