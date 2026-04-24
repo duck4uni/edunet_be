@@ -23,7 +23,7 @@ export class CourseController {
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(UserRole.TEACHER, UserRole.ADMIN)
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Teacher: creates course (status → pending). Admin: creates course (status → published immediately)' })
+  @ApiOperation({ summary: 'Create a course as draft (admin must assign teacher; teacher owns own course)' })
   create(@Body() createCourseDto: CreateCourseDto, @CurrentUser() currentUser: User) {
     return this.courseService.create(createCourseDto, currentUser);
   }
@@ -44,8 +44,9 @@ export class CourseController {
   findOne(
     @Param('id') id: string,
     @IncludeRelations() includes: Including | null,
+    @CurrentUser() currentUser: User | null,
   ) {
-    return this.courseService.findOne(id, includes);
+    return this.courseService.findOne(id, includes, currentUser);
   }
 
   @Patch(':id')
@@ -77,11 +78,11 @@ export class CourseController {
 
   @Patch(':id/publish')
   @UseGuards(AuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.TEACHER)
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Admin publishes an approved course (status → published)' })
-  publish(@Param('id') id: string) {
-    return this.courseService.publish(id);
+  @ApiOperation({ summary: 'Teacher publishes own approved course (status → published)' })
+  publish(@Param('id') id: string, @CurrentUser() currentUser: User) {
+    return this.courseService.publish(id, currentUser);
   }
 
   @Delete(':id')

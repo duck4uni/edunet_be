@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Enrollment, EnrollmentStatus } from './entities/enrollment.entity';
+import { Course, CourseStatus } from 'src/course/entities/course.entity';
 import { Pagination } from 'src/core/decorators/pagination-params.decorator';
 import { Sorting } from 'src/core/decorators/sorting-params.decorator';
 import { Filtering } from 'src/core/decorators/filtering-params.decorator';
@@ -17,9 +18,27 @@ export class EnrollmentService {
   constructor(
     @InjectRepository(Enrollment)
     private readonly enrollmentRepository: Repository<Enrollment>,
+    @InjectRepository(Course)
+    private readonly courseRepository: Repository<Course>,
   ) {}
 
   async create(createEnrollmentDto: CreateEnrollmentDto): Promise<CommonResponse<Enrollment>> {
+    const course = await this.courseRepository.findOne({
+      where: { id: createEnrollmentDto.courseId },
+      select: ['id', 'status'],
+    });
+
+    if (!course) {
+      return new ErrorResponse('Course not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (course.status !== CourseStatus.PUBLISHED) {
+      return new ErrorResponse(
+        'Course is not open for enrollment yet',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
     // Check if enrollment already exists
     const existingEnrollment = await this.enrollmentRepository.findOne({
       where: {
@@ -32,7 +51,10 @@ export class EnrollmentService {
       return new ErrorResponse('User already enrolled in this course', HttpStatus.BAD_REQUEST);
     }
 
-    const enrollment = this.enrollmentRepository.create(createEnrollmentDto);
+    const enrollment = this.enrollmentRepository.create({
+      ...createEnrollmentDto,
+      status: createEnrollmentDto.status ?? EnrollmentStatus.PENDING,
+    });
     const savedEnrollment = await this.enrollmentRepository.save(enrollment);
     return new SuccessResponse(savedEnrollment, HttpStatus.CREATED);
   }
